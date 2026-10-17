@@ -141,6 +141,50 @@ export function resolveTap(params: {
   return { type: 'deselect' };
 }
 
+/**
+ * What a finished drag means.
+ *
+ * A finger that drifts a few pixels while tapping can start and end a drag on
+ * the square it picked up from. That is not a move — it is the tap the player
+ * meant, and treating it as a move would either do nothing or, worse, play a
+ * piece one square sideways. Dropping off the board is likewise nothing.
+ */
+export type DropOutcome =
+  | { type: 'move'; from: string; to: string }
+  | { type: 'tap'; square: string }
+  | { type: 'ignore' };
+
+export function resolveDrop(source: string, target: string | null): DropOutcome {
+  if (!target || !/^[a-h][1-8]$/.test(source)) return { type: 'ignore' };
+  if (target === source) return { type: 'tap', square: source };
+  return { type: 'move', from: source, to: target };
+}
+
+/** How long a second report of the same square counts as the same tap. */
+export const TAP_ECHO_MS = 450;
+
+/**
+ * Whether this tap is the browser reporting a tap we have already handled.
+ *
+ * One physical tap can reach the board twice: a finger that drifts a couple of
+ * pixels starts and ends a one-square drag, and the browser then fires a click
+ * on the same square. Handled naively the pair selects a piece and immediately
+ * lets go of it — a board that appears not to respond at all — and on a marked
+ * square it would submit the same move twice, the second of which the server
+ * rejects. A repeat of the same square inside a few hundred milliseconds is
+ * always an echo, never a player changing their mind.
+ */
+export function isTapEcho(
+  previous: { square: string; at: number } | null,
+  square: string,
+  at: number,
+  windowMs: number = TAP_ECHO_MS,
+): boolean {
+  if (!previous) return false;
+  const delta = at - previous.at;
+  return previous.square === square && delta >= 0 && delta <= windowMs;
+}
+
 /** The king's square for a side, for the mated-king rotation. */
 export function kingSquare(fen: string, side: Side): string | null {
   try {

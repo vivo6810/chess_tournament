@@ -3,12 +3,15 @@ import { test } from 'node:test';
 
 import {
   isPromotion,
+  isTapEcho,
   kingSquare,
   matedSide,
   outcomeFor,
   premoveFen,
+  resolveDrop,
   resolveTap,
   sideOn,
+  TAP_ECHO_MS,
   targetsFrom,
   withTurn,
 } from './chess-ui.ts';
@@ -204,6 +207,30 @@ test('a promotion tap is still just a tap onto the last rank', () => {
     resolveTap({ fen, square: 'a8', side: 'w', selected: 'a7', targets }),
     { type: 'play', from: 'a7', to: 'a8' },
   );
+});
+
+test('one physical tap reported twice is only handled once', () => {
+  /* The pattern that made the board feel dead on a phone: a drag that ended
+     where it started, then the click that follows it. */
+  const first = { square: 'e2', at: 10_000 };
+  assert.equal(isTapEcho(first, 'e2', 10_030), true);
+  assert.equal(isTapEcho(first, 'e2', 10_000 + TAP_ECHO_MS), true, 'the edge of the window counts');
+
+  /* A different square is the player moving on, not an echo. */
+  assert.equal(isTapEcho(first, 'e4', 10_020), false);
+  /* And a deliberate second tap later is real. */
+  assert.equal(isTapEcho(first, 'e2', 10_000 + TAP_ECHO_MS + 1), false);
+  assert.equal(isTapEcho(null, 'e2', 10_000), false, 'nothing to echo yet');
+  /* Clock skew that would read as the past must not swallow a tap. */
+  assert.equal(isTapEcho(first, 'e2', 9_000), false);
+});
+
+test('a drag that ends where it started is the tap it drifted from', () => {
+  assert.deepEqual(resolveDrop('e2', 'e2'), { type: 'tap', square: 'e2' });
+  assert.deepEqual(resolveDrop('e2', 'e4'), { type: 'move', from: 'e2', to: 'e4' });
+  /* Dropping back onto the tray, or off the board, is not an instruction. */
+  assert.deepEqual(resolveDrop('e2', null), { type: 'ignore' });
+  assert.deepEqual(resolveDrop('tray', 'e4'), { type: 'ignore' });
 });
 
 /* ── Squares ───────────────────────────────────────────────────── */

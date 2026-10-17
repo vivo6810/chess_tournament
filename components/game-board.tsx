@@ -10,10 +10,12 @@ import GameResult from '@/components/game-result';
 import GameReview, { type ReviewMove } from '@/components/game-review';
 import {
   isPromotion,
+  isTapEcho,
   kingSquare,
   matedSide,
   outcomeFor,
   premoveFen,
+  resolveDrop,
   resolveTap,
   targetsFrom,
   type MoveAttempt,
@@ -102,6 +104,11 @@ export default function GameBoard({
      queue until the server has answered the last one — otherwise two clicks
      could both be validated against the same position. */
   const firedFromRef = useRef<string | null>(null);
+  /* The last square a tap was handled for. One physical tap can arrive twice —
+     a drag that ended where it began, and the click the browser fires after
+     it — and handling both would select a piece and immediately let go of it,
+     which is exactly what a dead board feels like. */
+  const lastTapRef = useRef<{ square: string; at: number } | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -276,36 +283,20 @@ export default function GameBoard({
     void submit(next.from, next.to, next.promotion);
   }, [canMove, myTurn, queue, serverFen, submit]);
 
-  const onPieceDrop = useCallback(
-    ({ sourceSquare, targetSquare }: { sourceSquare: string; targetSquare: string | null }) => {
-      if (!canMove || !targetSquare) return false;
-
-      const promoting = isPromotion(
-        boardFen,
-        sourceSquare,
-        targetSquare,
-        myTurn ? undefined : (viewerSide ?? undefined),
-      );
-      if (promoting) {
-        setPendingPromotion({ from: sourceSquare, to: targetSquare, premove: !myTurn });
-        return false;
-      }
-
-      play(sourceSquare, targetSquare);
-      return true;
-    },
-    [boardFen, canMove, myTurn, play, viewerSide],
-  );
-
-  const onSquareClick = useCallback(
-    ({ square }: { square: string }) => {
+  /* ── Tap to move ───────────────────────────────────────────────
+     Clicking a marked square plays the move; clicking one of your own pieces
+     selects it. This is the whole tap-to-move path that mobile players get
+     instead of a drag across a 32px square. The decision itself is
+     `resolveTap` in lib/chess-ui so it can be tested without a DOM. */
+  const handleTap = useCallback(
+    (square: string) => {
       if (!canMove || finished || !viewerSide) return;
 
-      /* Clicking a marked square plays the move; clicking one of your own
-         pieces selects it. This is the whole tap-to-move path that mobile
-         players get instead of a drag across a 32px square. The decision
-         itself is `resolveTap` in lib/chess-ui so it can be tested without a
-         DOM. */
+      /* Drop the echo of a tap that has already been handled. */
+      const at = Date.now();
+      if (isTapEcho(lastTapRef.current, square, at)) return;
+      lastTapRef.current = { square, at };
+
       const tap = resolveTap({
         fen: boardFen,
         square,
@@ -319,6 +310,42 @@ export default function GameBoard({
       else setSelected(null);
     },
     [boardFen, canMove, finished, play, selected, targets, viewerSide],
+  );
+
+  const onPieceDrop = useCallback(
+    ({ sourceSquare, targetSquare }: { sourceSquare: string; targetSquare: string | null }) => {
+      if (!canMove) return false;
+
+      const drop = resolveDrop(sourceSquare, targetSquare);
+      if (drop.type === 'ignore') return false;
+
+      /* A drag that ended on the square it started from is a tap that drifted,
+         not a move. */
+      if (drop.type === 'tap') {
+        handleTap(drop.square);
+        return false;
+      }
+
+      const promoting = isPromotion(
+        boardFen,
+        drop.from,
+        drop.to,
+        myTurn ? undefined : (viewerSide ?? undefined),
+      );
+      if (promoting) {
+        setPendingPromotion({ from: drop.from, to: drop.to, premove: !myTurn });
+        return false;
+      }
+
+      play(drop.from, drop.to);
+      return true;
+    },
+    [boardFen, canMove, handleTap, myTurn, play, viewerSide],
+  );
+
+  const onSquareClick = useCallback(
+    ({ square }: { square: string }) => handleTap(square),
+    [handleTap],
   );
 
   const choosePromotion = useCallback(
@@ -467,6 +494,11 @@ export default function GameBoard({
               canDragPiece: ({ piece }) =>
                 viewerSide != null && piece.pieceType.charAt(0) === viewerSide,
               animationDurationInMs: 180,
+              /* A finger always moves a few pixels while tapping. Without a
+                 little slack every tap on a piece became a one-square drag —
+                 and a drag that lands on the next square plays a move nobody
+                 asked for. */
+              dragActivationDistance: 10,
               showNotation: true,
               squareStyles,
               darkSquareStyle: { backgroundColor: 'var(--color-board-dark)' },

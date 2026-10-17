@@ -53,7 +53,8 @@ app/
 
 components/
   split-flap-text/        SplitFlapText + .css — Solari display, reusable
-  gooey-nav/              GooeyNav + .css — header nav with a gooey pill
+  site-header.tsx         the header: gooey pill from md up, drop-down menu below it
+  gooey-nav/              GooeyNav + .css — the pill itself (desktop only)
   masked-heading/         MaskedHeading + .css — GSAP heading clipped to media
   game-board.tsx          live game: board, clocks, actions, engine, review
   game-clock.tsx          the split-flap clock (wraps SplitFlapText)
@@ -190,6 +191,12 @@ else is achromatic. That scarcity is what gives the pastels their signal.
 - The engine is served from `/public/engine` and instantiated by same-origin URL. It is
   the worker entry point itself; wrapping it in another worker breaks it.
 - `react-chessboard` v5 takes a single `options` prop, not flat props.
+- One tap reaches the board twice: a finger drifting a few pixels starts and ends a
+  drag, then the browser fires a click on the same square. `resolveDrop` (drop on the
+  origin square is a tap) and `isTapEcho` in `lib/chess-ui.ts` are the only place that
+  is resolved — do not lower `dragActivationDistance`, it is what keeps a tap a tap.
+- `GooeyNav` needs ~420px. Below `md` it wraps and its gooey surface balloons over the
+  page, which is why `site-header.tsx` swaps it for the drop-down menu there.
 - The board colours are read from CSS custom properties in `game-board.tsx`, so the
   board follows the theme. Any hardcoded hex in a board or piece is a bug.
 - `MaskedHeading` clips media to letterforms. With no media the heading is invisible,
