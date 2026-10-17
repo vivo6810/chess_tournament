@@ -1,0 +1,118 @@
+▲ Next.js 16.4.2 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+✓ Ready in 498ms
+✓ Running next.config.ts took 84ms
+
+ GET / 200 in 807ms (next.js: 270ms, application-code: 537ms)
+ GET / 200 in 98ms (next.js: 1.8ms, application-code: 96ms)
+ GET /tournaments 200 in 99ms (next.js: 20ms, application-code: 79ms)
+ GET /tournaments/new 200 in 79ms (next.js: 19ms, application-code: 59ms)
+ GET / 200 in 104ms (next.js: 1.6ms, application-code: 103ms)
+ GET / 200 in 156ms (next.js: 1.7ms, application-code: 154ms)
+ GET /tournaments 200 in 43ms (next.js: 6ms, application-code: 36ms)
+✓ Compiled in 53ms
+ GET /tournaments 200 in 47ms (next.js: 3ms, application-code: 44ms)
+ GET / 200 in 40ms (next.js: 2ms, application-code: 38ms)
+ GET /tournaments 200 in 24ms (next.js: 2ms, application-code: 22ms)
+ GET /tournaments/new 200 in 36ms (next.js: 3ms, application-code: 33ms)
+ GET /analysis 200 in 26ms (next.js: 9ms, application-code: 18ms)
+ GET /leaderboard 200 in 35ms (next.js: 12ms, application-code: 23ms)
+ GET / 200 in 41ms (next.js: 2ms, application-code: 38ms)
+✓ Compiled in 89ms
+✓ Compiled in 67ms
+✓ Compiled in 284ms
+✓ Compiled in 305ms
+⨯ ReferenceError: FoldText is not defined
+    at LandingPage (app/page.tsx:233:14)
+  231 |           </p>
+  232 |           <div aria-hidden="true" className="mt-3">
+> 233 |             <FoldText
+      |              ^
+  234 |               text="Every move, accounted for."
+  235 |               announce={false}
+  236 |               foldStyle="blinds" {
+  digest: '2614998433'
+}
+ GET / 200 in 114ms (next.js: 9ms, application-code: 105ms)
+✓ Compiled in 144ms
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET / 200 in 345ms (next.js: 2ms, application-code: 342ms)
+✓ Compiled in 65ms
+ GET / 200 in 41ms (next.js: 5ms, application-code: 36ms)
+✓ Compiled in 173ms
+✓ Compiled in 45ms
+✓ Compiled in 36ms
+✓ Compiled in 51ms
+ GET /tournaments/new 200 in 26ms (next.js: 3ms, application-code: 23ms)
+ GET /tournaments 200 in 28ms (next.js: 3ms, application-code: 25ms)
+ GET /analysis 200 in 35ms (next.js: 1.9ms, application-code: 33ms)
+ GET /leaderboard 200 in 33ms (next.js: 2ms, application-code: 31ms)
+ GET / 200 in 29ms (next.js: 2ms, application-code: 26ms)
+ GET /tournaments 200 in 21ms (next.js: 1.5ms, application-code: 19ms)
+ GET / 200 in 34ms (next.js: 1.6ms, application-code: 33ms)
+ GET / 200 in 110ms (next.js: 2ms, application-code: 108ms)
+ POST /api/auth/register 200 in 292ms (next.js: 117ms, application-code: 176ms)
+ POST /api/auth/register 200 in 79ms (next.js: 1.2ms, application-code: 78ms)
+ POST /api/auth/register 200 in 49ms (next.js: 1.2ms, application-code: 48ms)
+ POST /api/auth/register 409 in 6ms (next.js: 1.1ms, application-code: 5ms)
+ POST /api/auth/register 409 in 6ms (next.js: 1.1ms, application-code: 5ms)
+ POST /api/auth/register 400 in 5ms (next.js: 1.0ms, application-code: 4ms)
+ POST /api/tournaments 201 in 72ms (next.js: 57ms, application-code: 15ms)
+ POST /api/tournaments/smoke-test-open/start 200 in 717ms (next.js: 699ms, application-code: 17ms)
+ POST /api/tournaments/smoke-test-open/advance 400 in 722ms (next.js: 710ms, application-code: 12ms)
+ POST /api/games/5/move 403 in 728ms (next.js: 714ms, application-code: 15ms)
+ POST /api/games/5/move 401 in 44ms (next.js: 37ms, application-code: 6ms)
+ GET /api/games/5 200 in 1031ms (next.js: 1022ms, application-code: 9ms)
+ POST /api/games/5/action 200 in 773ms (next.js: 746ms, application-code: 27ms)
+ POST /api/tournaments/smoke-test-open/advance 401 in 19ms (next.js: 13ms, application-code: 7ms)
+ POST /api/tournaments 201 in 74ms (next.js: 1.1ms, application-code: 73ms)
+ POST /api/tournaments/smoke-untimed/start 200 in 95ms (next.js: 82ms, application-code: 13ms)
+ GET /api/games/8 200 in 104ms (next.js: 42ms, application-code: 62ms)
+ POST /api/games/8/move 200 in 310ms (next.js: 94ms, application-code: 215ms)
+ POST /api/games/8/move 403 in 9ms (next.js: 1.5ms, application-code: 8ms)
+ POST /api/games/8/move 400 in 8ms (next.js: 1.1ms, application-code: 7ms)
+ POST /api/games/8/move 200 in 36ms (next.js: 20ms, application-code: 16ms)
+ GET /api/games/8 200 in 22ms (next.js: 14ms, application-code: 8ms)
+ POST /api/games/8/action 200 in 198ms (next.js: 16ms, application-code: 182ms)
+ GET /api/games/8 200 in 13ms (next.js: 2ms, application-code: 11ms)
+ POST /api/games/8/action 400 in 94ms (next.js: 1.3ms, application-code: 92ms)
+ POST /api/games/8/action 200 in 95ms (next.js: 1.6ms, application-code: 93ms)
+ POST /api/games/8/action 200 in 192ms (next.js: 1.4ms, application-code: 191ms)
+ POST /api/games/8/action 200 in 181ms (next.js: 1.6ms, application-code: 179ms)
+ POST /api/games/8/move 400 in 70ms (next.js: 17ms, application-code: 53ms)
+ POST /api/tournaments 201 in 97ms (next.js: 1.3ms, application-code: 96ms)
+ POST /api/tournaments/smoke-mate/start 200 in 100ms (next.js: 15ms, application-code: 85ms)
+ POST /api/games/9/move 200 in 92ms (next.js: 1.6ms, application-code: 91ms)
+ POST /api/games/9/move 200 in 180ms (next.js: 1.8ms, application-code: 179ms)
+ POST /api/games/9/move 200 in 89ms (next.js: 1.0ms, application-code: 88ms)
+ POST /api/games/9/move 200 in 102ms (next.js: 85ms, application-code: 18ms)
+ GET /api/games/9 200 in 96ms (next.js: 17ms, application-code: 79ms)
+ POST /api/auth/register 200 in 81ms (next.js: 2ms, application-code: 79ms)
+ POST /api/auth/register 200 in 87ms (next.js: 2ms, application-code: 85ms)
+ POST /api/tournaments 201 in 12ms (next.js: 1.7ms, application-code: 10ms)
+ POST /api/tournaments/visual-check/start 200 in 61ms (next.js: 18ms, application-code: 44ms)
+ GET /games/10 200 in 1019ms (next.js: 841ms, application-code: 179ms)
+ GET /games/10 200 in 455ms (next.js: 38ms, application-code: 416ms)
+ GET / 200 in 122ms (next.js: 1.6ms, application-code: 120ms)
+ GET / 200 in 122ms (next.js: 1.0ms, application-code: 121ms)
+ GET / 200 in 72ms (next.js: 1.0ms, application-code: 71ms)
+ GET /tournaments 200 in 39ms (next.js: 0.8ms, application-code: 38ms)
+ GET /analysis 200 in 56ms (next.js: 1.0ms, application-code: 55ms)
+ GET / 200 in 97ms (next.js: 1.4ms, application-code: 96ms)
+✓ Compiled in 119ms
+ GET / 200 in 47ms (next.js: 4ms, application-code: 43ms)
+ POST /api/auth/register 200 in 59ms (next.js: 1.3ms, application-code: 57ms)
+ POST /api/auth/register 200 in 94ms (next.js: 1.6ms, application-code: 92ms)
+ POST /api/tournaments 201 in 10ms (next.js: 1.3ms, application-code: 8ms)
+ POST /api/tournaments/mate-check/start 200 in 23ms (next.js: 16ms, application-code: 8ms)
+ POST /api/games/11/move 200 in 91ms (next.js: 15ms, application-code: 75ms)
+ POST /api/games/11/move 200 in 11ms (next.js: 3ms, application-code: 9ms)
+ POST /api/games/11/move 200 in 275ms (next.js: 74ms, application-code: 200ms)
+ POST /api/games/11/move 200 in 113ms (next.js: 1.0ms, application-code: 112ms)
+ GET /games/11 200 in 698ms (next.js: 16ms, application-code: 682ms)
+ GET /games/11 200 in 419ms (next.js: 2ms, application-code: 417ms)
+ GET / 200 in 103ms (next.js: 0.9ms, application-code: 102ms)
+ GET / 200 in 112ms (next.js: 1.3ms, application-code: 111ms)
+ GET / 200 in 83ms (next.js: 1.2ms, application-code: 81ms)
+ GET / 200 in 99ms (next.js: 1.4ms, application-code: 98ms)

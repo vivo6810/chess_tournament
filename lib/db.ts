@@ -1,0 +1,237 @@
+import { DatabaseSync } from 'node:sqlite';
+import { mkdirSync } from 'node:fs';
+import path from 'node:path';
+
+/**
+ * Storage is local SQLite through Node's built-in `node:sqlite`, so the app
+ * runs with no external service, no API key, and no native compilation step.
+ * Everything below is written against plain SQL, so swapping to Postgres later
+ * means changing this file and the queries, not the domain logic.
+ */
+
+const DB_PATH = process.env.DATABASE_PATH ?? path.join(process.cwd(), 'data', 'arbiter.db');
+
+const SCHEMA = `
+CREATE TABLE IF NOT EXISTS users (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  username      TEXT NOT NULL,
+  username_key  TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  rating        INTEGER NOT NULL DEFAULT 1200,
+  created_at    INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  token      TEXT PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
+CREATE TABLE IF NOT EXISTS tournaments (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  slug          TEXT NOT NULL UNIQUE,
+  name          TEXT NOT NULL,
+  host_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  format        TEXT NOT NULL CHECK (format IN ('swiss', 'round_robin')),
+  time_control  TEXT NOT NULL,
+  total_rounds  INTEGER NOT NULL DEFAULT 0,
+  status        TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'running', 'finished')),
+  current_round INTEGER NOT NULL DEFAULT 0,
+  created_at    INTEGER NOT NULL,
+  started_at    INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS tournament_players (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+  name          TEXT NOT NULL,
+  user_id       INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  seed          INTEGER NOT NULL,
+  withdrawn     INTEGER NOT NULL DEFAULT 0,
+  created_at    INTEGER NOT NULL,
+  UNIQUE (tournament_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_players_tournament ON tournament_players(tournament_id);
+
+CREATE TABLE IF NOT EXISTS games (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  tournament_id   INTEGER REFERENCES tournaments(id) ON DELETE CASCADE,
+  round_no        INTEGER,
+  board           INTEGER,
+  white_player_id INTEGER NOT NULL REFERENCES tournament_players(id) ON DELETE CASCADE,
+  black_player_id INTEGER NOT NULL REFERENCES tournament_players(id) ON DELETE CASCADE,
+  time_control    TEXT NOT NULL,
+  fen             TEXT NOT NULL,
+  moves           TEXT NOT NULL DEFAULT '[]',
+  status          TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'finished')),
+  result          TEXT,
+  termination     TEXT,
+  white_ms        INTEGER NOT NULL,
+  black_ms        INTEGER NOT NULL,
+  increment_ms    INTEGER NOT NULL DEFAULT 0,
+  per_move_ms     INTEGER NOT NULL DEFAULT 0,
+  turn_started_at INTEGER NOT NULL,
+  /* Who last offered a draw, by user id. NULL means no offer is standing.
+     A draw is an agreement between the two players, so it needs a place to
+     hold the half-finished agreement; the board position alone cannot. */
+  draw_offer_by   INTEGER,
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_games_tournament ON games(tournament_id, round_no, board);
+
+CREATE TABLE IF NOT EXISTS pairings (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+  round_no      INTEGER NOT NULL,
+  board         INTEGER NOT NULL,
+  white_id      INTEGER REFERENCES tournament_players(id) ON DELETE CASCADE,
+  black_id      INTEGER REFERENCES tournament_players(id) ON DELETE CASCADE,
+  game_id       INTEGER REFERENCES games(id) ON DELETE SET NULL,
+  result        TEXT,
+  is_bye        INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (tournament_id, round_no, board)
+);
+CREATE INDEX IF NOT EXISTS idx_pairings_round ON pairings(tournament_id, round_no);
+`;
+
+/* Columns added after a database already existed. `CREATE TABLE IF NOT EXISTS`
+   is a no-op there, so the schema above is not enough to migrate a running
+   instance — each entry is applied only when the column is missing. */
+const ADDED_COLUMNS: { table: string; column: string; definition: string }[] = [
+  { table: 'games', column: 'draw_offer_by', definition: 'INTEGER' },
+];
+
+function migrate(database: DatabaseSync): void {
+  for (const { table, column, definition } of ADDED_COLUMNS) {
+    const columns = database.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+    if (columns.length === 0) continue;
+    if (columns.some((existing) => existing.name === column)) continue;
+    database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
+function open(): DatabaseSync {
+  if (DB_PATH !== ':memory:') mkdirSync(path.dirname(DB_PATH), { recursive: true });
+  const database = new DatabaseSync(DB_PATH);
+  database.exec('PRAGMA journal_mode = WAL;');
+  database.exec('PRAGMA foreign_keys = ON;');
+  database.exec(SCHEMA);
+  migrate(database);
+  return database;
+}
+
+/* Next re-evaluates modules on every hot reload in development, which would
+   otherwise leave a pile of open handles to the same file. */
+const globalForDb = globalThis as unknown as { __arbiterDb?: DatabaseSync };
+export const db: DatabaseSync = globalForDb.__arbiterDb ?? (globalForDb.__arbiterDb = open());
+
+export type UserRow = {
+  id: number;
+  username: string;
+  username_key: string;
+  password_hash: string;
+  rating: number;
+  created_at: number;
+};
+
+export type TournamentRow = {
+  id: number;
+  slug: string;
+  name: string;
+  host_id: number;
+  format: 'swiss' | 'round_robin';
+  time_control: string;
+  total_rounds: number;
+  status: 'draft' | 'running' | 'finished';
+  current_round: number;
+  created_at: number;
+  started_at: number | null;
+};
+
+export type PlayerRow = {
+  id: number;
+  tournament_id: number;
+  name: string;
+  user_id: number | null;
+  seed: number;
+  withdrawn: number;
+  created_at: number;
+};
+
+export type PairingRow = {
+  id: number;
+  tournament_id: number;
+  round_no: number;
+  board: number;
+  white_id: number | null;
+  black_id: number | null;
+  game_id: number | null;
+  result: string | null;
+  is_bye: number;
+};
+
+export type MoveRecord = {
+  san: string;
+  uci: string;
+  fen: string;
+  at: number;
+  whiteMs: number;
+  blackMs: number;
+};
+
+export type GameRow = {
+  id: number;
+  tournament_id: number | null;
+  round_no: number | null;
+  board: number | null;
+  white_player_id: number;
+  black_player_id: number;
+  time_control: string;
+  fen: string;
+  moves: string;
+  status: 'active' | 'finished';
+  result: string | null;
+  termination: string | null;
+  white_ms: number;
+  black_ms: number;
+  increment_ms: number;
+  per_move_ms: number;
+  turn_started_at: number;
+  draw_offer_by: number | null;
+  created_at: number;
+  updated_at: number;
+};
+
+export function parseMoves(json: string): MoveRecord[] {
+  try {
+    const parsed = JSON.parse(json);
+    return Array.isArray(parsed) ? (parsed as MoveRecord[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export const now = () => Date.now();
+
+/** Turns a tournament name into a URL-safe, collision-free slug. */
+export function slugify(name: string): string {
+  const base =
+    name
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 48) || 'tournament';
+
+  let candidate = base;
+  let suffix = 2;
+  const exists = db.prepare('SELECT 1 FROM tournaments WHERE slug = ?');
+  while (exists.get(candidate)) {
+    candidate = `${base}-${suffix}`;
+    suffix += 1;
+  }
+  return candidate;
+}

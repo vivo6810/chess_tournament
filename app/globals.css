@@ -1,0 +1,846 @@
+@import 'tailwindcss';
+
+/* ────────────────────────────────────────────────────────────────
+   Arbiter — design system
+
+   A neobrutalist system, not a garnish. Three rules, and every
+   surface in the app obeys them:
+
+     1. A 2px hard border, everywhere.
+     2. A solid offset shadow, no blur, no spread.
+     3. No radius. Not one corner.
+
+   Rule 3 is enforced globally rather than per-component: the whole
+   Tailwind radius scale is zeroed below, so every `rounded-md`,
+   `rounded-lg` and `rounded-xl` already in the markup resolves to a
+   square, and a component added next month cannot quietly reintroduce
+   a soft corner. `rounded-full` is deliberately not part of that
+   scale and is only reachable by asking for it.
+
+   Colour is one scheme, not a collection of nice colours. Three roles,
+   in the proportions that make them legible:
+
+     1. **Scaffold — a warm monochrome.** Every surface and text value is
+        a tint or a shade of one warm hue (~38°, sand and umber). Tints
+        and shades of a single hue never clash, which is why a page can
+        carry six of them and still look composed. This is ~90% of the
+        area.
+     2. **Accent — one complementary hue (~214°, cobalt).** 38° and 214°
+        are opposite on the wheel, so the accent is the only colour on
+        the page that reads as *chosen* rather than neighbouring. It is
+        spent only on things you can act on: primary buttons, focus
+        rings, the active nav pill, the toggle thumb. Thin, deliberate,
+        ~10% — a complement stops being an accent the moment it becomes
+        a surface.
+     3. **Status — green, red, amber.** Allowed to be loud because they
+        are never decorative: a green badge means "won" and appears
+        nowhere else, which is what makes it mean anything.
+
+   Numbers below are ratios against the surface they sit on, and
+   `lib/theme.test.ts` fails the build if any of them slip.
+
+   Every colour token is declared twice: once in `@theme static`
+   (light) and once in `[data-theme='dark']`. Nothing may exist in
+   only one set. `@theme static` rather than plain `@theme` because
+   Tailwind tree-shakes theme variables it believes are unused, and it
+   cannot see a `var()` sitting inside hand-written CSS or an inline
+   SVG. `lib/theme.test.ts` fails the build if the two key sets
+   diverge or a pair drops below its contrast floor.
+   ──────────────────────────────────────────────────────────────── */
+
+@theme static {
+  /* Square everything. */
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+  --radius-4xl: 0px;
+
+  /* Surfaces.
+
+     The canvas is *sand*, not white. The previous pair (#faf8f4 canvas,
+     #ffffff card) measured 1.03:1 — a card on that page was white on white
+     with a 1.4:1 border, which is exactly what "I can't see the contrast"
+     meant. Dropping the canvas to a warm sand and keeping cards near-white
+     puts 1.29:1 between the paper and the card and lets the 2px ink border
+     and the offset shadow do the rest. */
+  --color-canvas: #e8e0d0;
+  --color-bone: #f2ecdf;
+  --color-surface: #fffdf7;
+  --color-surface-sunken: #ddd4c1;
+
+  /* Separation. On a neobrutalist page a border is structural, not a
+     suggestion: `line` now reads 1.9:1 against a card, and the heavy
+     borders are drawn in `ink` rather than in this. */
+  --color-line: #c2b69e;
+  --color-line-strong: #9b8e76;
+
+  /* Text. `muted` sits above 5:1 on the canvas — the old #787774 was
+     4.4:1, which passes only for large text and reads as grey mush for
+     the 12–13px captions it is actually used on. */
+  --color-muted: #57534b;
+  --color-ink-soft: #26221c;
+  --color-ink: #14120e;
+
+  /* The offset shadow. It has to be visible against both the canvas and
+     a card, since it can land on either. */
+  --color-brut: #14120e;
+
+  /* Inverted solid. Buttons used to be `bg-ink text-white`; in dark mode
+     `ink` becomes cream, so white-on-cream would have erased them. These
+     two tokens always move together. */
+  --color-solid: #14120e;
+  --color-on-solid: #fbf8f2;
+
+  /* The accent: sand sits near 38°, so its complement lands near 218°.
+     Actionable things only — see the scheme note at the top. */
+  --color-accent: #1d4ed8;
+  --color-on-accent: #fbf8f2;
+
+  /* The band.
+
+     The one full-bleed dark section on the landing page is a *physical
+     object*, like the split-flap clock: it stays near-black in both
+     palettes, and so does the cream slab that sits on it. That is the
+     whole reason these are separate tokens rather than `solid` / `on-solid`
+     — those invert in dark mode, which would have turned the band cream and
+     put cream text on it. */
+  --color-band: #14120e;
+  --color-band-fg: #fbf7f1;
+  --color-band-slab: #fbf7f1;
+  --color-band-slab-ink: #14120e;
+
+  /* Status pastels — semantic, never decorative */
+  --color-win-bg: #eaf3e9;
+  --color-win-fg: #2f5c33;
+  --color-loss-bg: #fdeaea;
+  --color-loss-fg: #962c2a;
+  --color-draw-bg: #fbf2d8;
+  --color-draw-fg: #855800;
+  --color-info-bg: #e0f2fe;
+  --color-info-fg: #1b6291;
+
+  /* Board. The squares are the one place a real contrast ratio is
+     load-bearing twice over: they must separate from each other, and the
+     hero heading is nothing but board colour clipped to letterforms, so
+     a washed-out board is a washed-out headline. 2.7:1 apart. */
+  --color-board-light: #fbf4e6;
+  --color-board-dark: #8d7b5d;
+
+  /* Split-flap clock. Not a surface: a physical display bolted to the
+     page, so it keeps dark boards and bright digits in both palettes and
+     does not follow the canvas at all. In dark mode the board lifts and
+     picks up a lit edge instead, because a board the same value as the
+     page it sits on is not an object, it is a smudge. */
+  --color-flap-bg: #1b1815;
+  --color-flap-fg: #f9f5ee;
+  /* The side that is not on the move. Dimmer, but still ≥3:1 on the board:
+     a chess clock's digits are large text, and a clock you cannot read is
+     worse than no clock. */
+  --color-flap-idle: #8e857a;
+  /* Time pressure. Allowed to be chromatic because it is a signal, and it
+     has to be a *bright* red — `loss-fg` is tuned for a pastel background
+     and would be about 2:1 on a dark board. */
+  --color-flap-alert: #ff9a80;
+
+  /* Type. Two faces, not three: Geist carries interface and body copy,
+     Geist Mono handles notation, numbers and clocks, where digit widths
+     must not shift. The editorial serif this used to load was doing the
+     job that weight and tracking do better here. */
+  --font-sans: var(--font-geist), 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), 'SF Mono', 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Motion. Two curves carry the whole site: one for entrances, one for
+     on-screen movement. Built-in `ease-out` is too weak to read as
+     intentional at these durations. */
+  --ease-out-editorial: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* ── Dark ──────────────────────────────────────────────────────
+   Not an inversion. The canvas drops to a warm near-black and the ink
+   lifts to cream, but the *board stays light* — a chessboard is an
+   ivory-and-umber physical object under a lamp. Darkening it would
+   have killed the one element the page is built around.
+
+   The offset shadow becomes *lighter* than the page here. A black
+   offset on a near-black canvas is not a shadow, it is nothing. */
+[data-theme='dark'] {
+  --color-canvas: #121110;
+  --color-bone: #1f1c18;
+  /* Raised surfaces have to gain value in dark mode or a card is invisible
+     on the page — the same failure as white-on-white, inverted. */
+  --color-surface: #2b2620;
+  --color-surface-sunken: #171513;
+
+  --color-line: #6b6154;
+  --color-line-strong: #857a68;
+
+  --color-muted: #aea59a;
+  --color-ink-soft: #e4ded4;
+  --color-ink: #fbf7f1;
+
+  --color-brut: #6b6257;
+
+  --color-solid: #f2ede4;
+  --color-on-solid: #16130f;
+
+  /* Complement flipped in value, not in hue: the accent has to be the
+     lightest thing on a dark page to stay an accent. */
+  --color-accent: #9dbcff;
+  --color-on-accent: #12100c;
+
+  /* Still a dark band in dark mode — a lighter one, so it reads as the same
+     object under different light rather than as a hole cut in the page. */
+  --color-band: #17140f;
+  --color-band-fg: #f3ede2;
+  --color-band-slab: #f8f3e9;
+  --color-band-slab-ink: #17140f;
+
+  --color-win-bg: #17251a;
+  --color-win-fg: #86c491;
+  --color-loss-bg: #2a1719;
+  --color-loss-fg: #e99995;
+  --color-draw-bg: #2a2214;
+  --color-draw-fg: #ddba66;
+  --color-info-bg: #14232e;
+  --color-info-fg: #8cc0e2;
+
+  --color-board-light: #c8bda8;
+  --color-board-dark: #6e6150;
+
+  --color-flap-bg: #332d27;
+  --color-flap-fg: #fbf7f1;
+  --color-flap-idle: #8b8177;
+  --color-flap-alert: #ff9a80;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+    /* Tells the browser to render form controls, scrollbars and the canvas
+       gutter in the matching scheme. Without this a dark page gets a white
+       scrollbar and white native inputs. */
+    color-scheme: light;
+  }
+
+  html[data-theme='dark'] {
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--color-canvas);
+    color: var(--color-ink-soft);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* A neobrutalist heading is a statement: heavy, tight, and unafraid of
+     the width it takes. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    color: var(--color-ink);
+    letter-spacing: -0.03em;
+    line-height: 1.08;
+    font-weight: 800;
+  }
+
+  ::selection {
+    background: var(--color-ink);
+    color: var(--color-canvas);
+  }
+
+  /* The focus ring is the one place the accent must never be missed. */
+  :focus-visible {
+    outline: 3px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}
+
+/* ── The two primitives ───────────────────────────────────────
+   `@utility` rather than `@layer components` so these compose with
+   Tailwind's own utilities and can be used with variants. */
+@utility shadow-brut {
+  box-shadow: 5px 5px 0 0 var(--color-brut);
+}
+
+@utility shadow-brut-sm {
+  box-shadow: 3px 3px 0 0 var(--color-brut);
+}
+
+@utility shadow-brut-lg {
+  box-shadow: 9px 9px 0 0 var(--color-brut);
+}
+
+@layer components {
+  .badge {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 0.35em;
+    border: 2px solid currentColor;
+    padding: 0.1em 0.5em;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    line-height: 1.5;
+    white-space: nowrap;
+  }
+
+  /* ── Press feedback ────────────────────────────────────────────
+     The element travels *into* its own offset shadow, so the shadow
+     shrinks to nothing as it goes down. That is the whole trick: the
+     button looks like a physical key being pushed flush with the page. */
+  .press {
+    transition:
+      transform 120ms var(--ease-out-strong),
+      box-shadow 120ms var(--ease-out-strong),
+      background-color 140ms var(--ease-out-strong),
+      border-color 140ms var(--ease-out-strong),
+      color 140ms var(--ease-out-strong);
+  }
+
+  .press:active:not(:disabled) {
+    transform: translate(3px, 3px);
+    box-shadow: none;
+    transition-duration: 60ms;
+  }
+
+  .press:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+    box-shadow: none;
+  }
+
+  /* For a whole card that is a link: the same idea as `.press` but on
+     hover, because there is nowhere to press until you commit. */
+  .lift {
+    transition:
+      transform 120ms var(--ease-out-strong),
+      box-shadow 120ms var(--ease-out-strong);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .lift:hover {
+      transform: translate(-2px, -2px);
+      box-shadow: 7px 7px 0 0 var(--color-brut);
+    }
+  }
+
+  .lift:active {
+    transform: translate(2px, 2px);
+    box-shadow: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .press,
+    .press:active:not(:disabled),
+    .lift,
+    .lift:hover,
+    .lift:active {
+      transform: none;
+      transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+    }
+  }
+
+  /* ── Step card ─────────────────────────────────────────────────
+     The three instructions on the landing page. They are not links, so the
+     hover state is a *response* rather than an affordance: the card lifts
+     into its shadow, the border takes the accent, and the step number — the
+     one piece of chrome that is not text — colours in behind it.
+
+     Pointer-only, because a card that moves under a finger on touch is a
+     card that moved for no reason.
+     */
+  .step-card {
+    transition:
+      transform 180ms var(--ease-out-strong),
+      box-shadow 180ms var(--ease-out-strong),
+      border-color 180ms var(--ease-out-strong);
+  }
+
+  .step-card__index {
+    display: inline-block;
+    transition: color 180ms var(--ease-out-strong);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .step-card:hover {
+      transform: translate(-3px, -3px);
+      box-shadow: 8px 8px 0 0 var(--color-brut);
+      border-color: var(--color-accent);
+    }
+
+    .step-card:hover .step-card__index {
+      color: var(--color-accent);
+    }
+  }
+
+  .step-card:focus-within {
+    border-color: var(--color-accent);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .step-card,
+    .step-card:hover {
+      transform: none;
+      transition: border-color 180ms ease;
+    }
+  }
+
+  /* ── Glass ─────────────────────────────────────────────────────
+     A frosted panel. The tint is mixed from the surface token rather
+     than stored as an rgba literal, so one class works in both themes
+     instead of needing a light copy and a dark copy that drift apart.
+
+     Two things make glass read as glass and not as a grey box: the
+     1px inner highlight along the top edge (light catching the bevel)
+     and saturation on the backdrop filter. Blur alone just looks like
+     a blurred box — `saturate(150%)` is what makes the colour behind
+     it bloom through. */
+  .glass {
+    background: color-mix(in srgb, var(--color-surface) 42%, transparent);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    border: 2px solid color-mix(in srgb, var(--color-ink) 20%, transparent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, #ffffff 40%, transparent),
+      0 26px 60px -34px rgb(0 0 0 / 0.5);
+  }
+
+  /* Below roughly 70% opacity the blur starts showing the backdrop's
+     geometry through the text, which is unreadable long before it is
+     attractive. The tint stays here even though it costs some of the
+     "glass" look — legibility is the point of the panel. */
+  .glass--on-ink {
+    /* 8% was genuinely invisible: composited over the band it landed at
+       1.28:1 against its own background, so the cards had no shape at all
+       and the section read as one flat black rectangle. 14% puts the panel
+       near 2:1 — visible as an object without becoming a lighter surface. */
+    background: color-mix(in srgb, #ffffff 14%, transparent);
+    border-color: color-mix(in srgb, var(--color-band-fg) 34%, transparent);
+    color: var(--color-band-fg);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, #ffffff 20%, transparent),
+      inset 0 -1px 0 color-mix(in srgb, #000000 45%, transparent),
+      0 32px 80px -46px rgb(0 0 0 / 0.95);
+  }
+
+  /* The inverted cell inside the band. Cream in both palettes, with a cream
+     offset shadow, because a black shadow on a near-black band is nothing. */
+  .slab {
+    background: var(--color-band-slab);
+    color: var(--color-band-slab-ink);
+    border: 2px solid var(--color-band-slab);
+    box-shadow: 6px 6px 0 0 var(--color-band-fg);
+  }
+
+  /* A flat card on the ink band. This replaced a frosted-glass panel: the
+     blur was mixing the card into everything behind it and dragging the text
+     down to a washed-out grey, which is the opposite of what a panel is for.
+     One solid fill, one border, no gradient, no backdrop filter. */
+  .panel-on-ink {
+    background: color-mix(in srgb, var(--color-band-fg) 7%, var(--color-band));
+    border: 2px solid color-mix(in srgb, var(--color-band-fg) 28%, transparent);
+    color: var(--color-band-fg);
+  }
+
+  /* ── Inverted surfaces ────────────────────────────────────────
+     `h1..h4` are styled globally to `var(--color-ink)`. On a surface that
+     does not follow the page palette, that rule beats inheritance and the
+     heading disappears: cream on the cream slab in dark mode, near-black on
+     the dark band in light mode. Both of those shipped, one in each mode,
+     which is why this is a rule rather than a patch.
+
+     Anything inverted declares its own ink and these selectors hand it back
+     to the children. */
+  .band :is(h1, h2, h3, h4),
+  .slab :is(h1, h2, h3, h4) {
+    color: inherit;
+  }
+
+  /* A soft coloured bloom. Positioned and sized inline, since every use
+     wants a different radius and colour; this only owns the physics. */
+  .spot {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(72px);
+    pointer-events: none;
+  }
+
+  /* Graph paper, for the band that has to read as a *surface* rather
+     than as a background colour. */
+  .grid-paper {
+    background-image:
+      linear-gradient(to right, color-mix(in srgb, #ffffff 6%, transparent) 2px, transparent 2px),
+      linear-gradient(to bottom, color-mix(in srgb, #ffffff 6%, transparent) 2px, transparent 2px);
+    background-size: 72px 72px;
+  }
+
+  /* ── GooeyNav chrome, driven by the theme ─────────────────────
+     The nav normally writes these variables inline from its own `theme`
+     prop, and an inline value beats the stylesheet — which would pin the
+     header to one palette until React hydrated and then flip it. With
+     `adaptive` it leaves them to us, so the chrome is already correct on
+     the first paint. */
+  .gooey-nav--adaptive {
+    --gn-frame: var(--color-surface);
+    --gn-frame-edge: var(--color-ink);
+    --gn-frame-highlight: transparent;
+    --gn-frame-shadow: 4px 4px 0 0 var(--color-brut);
+    --gn-ink: var(--color-ink);
+    --gn-muted: var(--color-muted);
+    --gn-pill: var(--color-accent);
+    --gn-active-ink: var(--color-on-accent);
+  }
+
+  /* ── Theme toggle ──────────────────────────────────────────────
+     Both icons are always in the DOM and the *attribute* on <html>
+     drives which one is lit. That matters: React state would not exist
+     until hydration, so the icon would render as light, then snap to
+     dark on every load in dark mode. CSS reads the attribute the
+     pre-paint script already set, so there is nothing to snap. */
+  .theme-toggle {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    border: 2px solid var(--color-ink);
+    background: var(--color-surface);
+    /* The offset shadow is what makes it read as a control on the page
+       rather than as a piece of the header rule. It was previously
+       borderless-shadows and got lost next to the nav. */
+    box-shadow: 3px 3px 0 0 var(--color-brut);
+  }
+
+  .theme-toggle__track {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    width: 66px;
+    height: 32px;
+    background: var(--color-surface-sunken);
+    transition: background-color 180ms var(--ease-out-strong);
+  }
+
+  .theme-toggle__thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 30px;
+    height: 24px;
+    background: var(--color-accent);
+    box-shadow: 2px 2px 0 0 var(--color-brut);
+    transition:
+      transform 180ms var(--ease-out-strong),
+      background-color 180ms var(--ease-out-strong);
+  }
+
+  [data-theme='dark'] .theme-toggle__thumb {
+    transform: translateX(32px);
+  }
+
+  .theme-toggle__icon {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 33px;
+    height: 100%;
+    color: var(--color-muted);
+    transition: color 160ms var(--ease-out-strong);
+  }
+
+  .theme-toggle__icon svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  /* The icon sitting under the thumb is the one that reads as active. */
+  html:not([data-theme='dark']) .theme-toggle__icon--sun,
+  html[data-theme='dark'] .theme-toggle__icon--moon {
+    color: var(--color-on-accent);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .theme-toggle:hover {
+      box-shadow: 3px 3px 0 0 var(--color-brut);
+      transform: translate(-1px, -1px);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .theme-toggle__thumb,
+    .theme-toggle__track {
+      transition: none;
+    }
+  }
+
+  /* ── Form controls ─────────────────────────────────────────────
+     One shape for every input, select and textarea, so a control sits in
+     the language rather than floating above it. */
+  .field {
+    width: 100%;
+    border: 2px solid var(--color-ink);
+    background: var(--color-surface);
+    padding: 0.65rem 0.75rem;
+    font-size: 15px;
+    color: var(--color-ink);
+    outline: none;
+    transition:
+      box-shadow 140ms var(--ease-out-strong),
+      border-color 140ms var(--ease-out-strong);
+  }
+
+  .field::placeholder {
+    color: var(--color-muted);
+  }
+
+  .field:focus {
+    box-shadow: 4px 4px 0 0 var(--color-brut);
+  }
+
+  .field-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-ink);
+  }
+
+  /* ── Split-flap game clock ───────────────────────────────────
+     Every tile of the display is sized off its own font-size, so this
+     wrapper only has to lay the tenths beside it. The tenths slot is
+     *not* reserved while a player has time left: it opens the moment the
+     clock drops under ten seconds. Because the row is `justify-between`
+     and the clock is the last item, opening the slot pushes the boards
+     left while the right edge stays put — the numbers grow a tenths
+     digit without shoving anything else around. */
+  .game-clock {
+    position: relative;
+    display: inline-block;
+    flex: none;
+    font-family: var(--font-mono);
+  }
+
+  .game-clock--low {
+    padding-right: 22px;
+  }
+
+  .game-clock__tenths {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    width: 22px;
+    transform: translateY(-50%);
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-flap-alert);
+    text-align: left;
+  }
+
+  /* ── Notation strip ────────────────────────────────────────────
+     Keyframes rather than requestAnimationFrame, so it keeps running off
+     the main thread while React hydrates and costs nothing in a
+     background tab. */
+  .marquee-track {
+    display: flex;
+    width: max-content;
+    will-change: transform;
+    animation: arb-marquee 46s linear infinite;
+  }
+
+  .marquee-mask {
+    mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 7rem,
+      #000 calc(100% - 7rem),
+      transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 7rem,
+      #000 calc(100% - 7rem),
+      transparent 100%
+    );
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .marquee-track {
+      animation: none;
+    }
+  }
+}
+
+/* ── The board ─────────────────────────────────────────────────
+   Tap-to-move made the board an input surface, so it has to behave like
+   one: no text selection, no long-press callout, no double-tap zoom on
+   iOS. `touch-action: manipulation` is what removes the 300ms wait that
+   makes a tap feel broken on a phone. */
+@layer components {
+  .board-shell {
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .board-shell [data-square] {
+    /* The markers are painted onto the square's own background, so a
+       transparent square would show the canvas through the dot. */
+    background-clip: padding-box;
+  }
+
+  /* ── The fallen king ─────────────────────────────────────────
+     A mated king lies on its side. The rotation is the *whole* state:
+     there is no separate "mated" styling, because the piece has to look
+     identical until the moment the game ends and then fall over in front
+     of the player who lost it. */
+  .fallen-king {
+    display: block;
+    width: 100%;
+    height: 100%;
+    transform-origin: 50% 66%;
+  }
+
+  .fallen-king--white {
+    animation: arb-king-fall-left 640ms var(--ease-out-editorial) both;
+  }
+
+  .fallen-king--black {
+    animation: arb-king-fall-right 640ms var(--ease-out-editorial) both;
+  }
+
+  /* ── The result dialog ───────────────────────────────────────
+     A sheet on a phone and a card on a desktop, because a centred 480px
+     card on a 375px screen is an off-centre card. */
+  .result-scrim {
+    background: color-mix(in srgb, var(--color-ink) 62%, transparent);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    animation: arb-fade-in 180ms var(--ease-out-strong) both;
+  }
+
+  .result-card {
+    animation: arb-result-in 320ms var(--ease-out-editorial) both;
+  }
+
+  /* The paint is drawn on, not faded in: a tag appears with the marker
+     moving. `pathLength="1"` on the paths normalises them, so one dash
+     value works for a 20px flick and a 200px sweep. */
+  .result-spray {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: arb-spray 620ms var(--ease-out-editorial) 140ms forwards;
+  }
+
+  .result-spray--slow {
+    animation-duration: 820ms;
+    animation-delay: 260ms;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .fallen-king--white,
+    .fallen-king--black {
+      animation: none;
+      transform: rotate(-90deg);
+    }
+
+    .fallen-king--black {
+      transform: rotate(90deg);
+    }
+
+    .result-scrim,
+    .result-card {
+      animation: none;
+    }
+
+    .result-spray {
+      animation: none;
+      stroke-dashoffset: 0;
+    }
+  }
+}
+
+@keyframes arb-king-fall-left {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(-90deg);
+  }
+}
+
+@keyframes arb-king-fall-right {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(90deg);
+  }
+}
+
+@keyframes arb-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes arb-result-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes arb-spray {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes arb-marquee {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+/* ── Switching themes ──────────────────────────────────────────
+   Unlayered on purpose: it has to beat the component transitions above,
+   and anything outside `@layer` wins over anything inside it. The
+   attribute is set by the toggle immediately before it flips
+   `data-theme`, then removed once the fade is done, so the site pays for
+   this only during the ~200ms of an actual switch. */
+@media (prefers-reduced-motion: no-preference) {
+  html[data-theme-transition] *,
+  html[data-theme-transition] *::before,
+  html[data-theme-transition] *::after {
+    transition:
+      background-color 200ms var(--ease-out-strong),
+      border-color 200ms var(--ease-out-strong),
+      color 200ms var(--ease-out-strong),
+      fill 200ms var(--ease-out-strong),
+      stroke 200ms var(--ease-out-strong);
+  }
+}

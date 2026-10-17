@@ -1,0 +1,27 @@
+/* The proximity effect needs a variable face with a weight axis, or the
+   per-letter interpolation has nothing continuous to drive. Geist — the
+   site face — is variable, so the type is inherited rather than swapped for
+   a second family. `font-optical-sizing` is left alone; on a face without an
+   opsz axis the axis setting is simply ignored.
+
+   Letters are inline-block so each one can be measured and transformed
+   independently, and so a weight change cannot reflow its neighbours. */
+.variable-proximity {
+  font-family: inherit;
+  font-optical-sizing: auto;
+  text-wrap: pretty;
+}
+
+.variable-proximity [data-word] {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The component already stops the idle wave under reduced motion; this
+     keeps a pointer from scaling or lifting glyphs either. Colour and weight
+     still respond, because those do not move anything. */
+  .variable-proximity > span > span[aria-hidden='true'] {
+    transform: none !important;
+  }
+}
