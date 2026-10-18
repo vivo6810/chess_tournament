@@ -36,7 +36,7 @@ export default function LandingPage() {
       {/* ═══ Hero ═══════════════════════════════════════════════════
           The one place the page can be loud. Copy left, a real board right. */}
       <section className="relative border-b-2 border-ink bg-canvas">
-        <div className="relative grid lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+        <div className="relative grid lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
           <div className="relative px-5 py-12 sm:px-10 sm:py-14 lg:py-24 lg:pr-24">
             <p className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase">
               Swiss &amp; round robin
@@ -74,7 +74,7 @@ export default function LandingPage() {
           {/* A hard rule, not a wedge: the split is a border on the layout
               grid, so it lands at the same place at every viewport width
               without an absolutely-positioned shape to drift. */}
-          <div className="relative border-t-2 border-ink px-5 py-10 sm:px-10 sm:py-12 lg:border-t-0 lg:border-l-2 lg:py-20 lg:pr-12 lg:pl-24">
+          <div className="relative border-t-2 border-ink px-5 py-10 sm:px-10 sm:py-12 lg:border-t-0 lg:border-l-2 lg:py-16 lg:pr-8 lg:pl-16">
             <HeroArena />
           </div>
         </div>

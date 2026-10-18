@@ -130,6 +130,12 @@
   --color-board-light: #fbf4e6;
   --color-board-dark: #8d7b5d;
 
+  /* Where a selected piece can go. Green, because a legal destination is
+     the one place on the board where "this is allowed" is worth saying in
+     colour — and it is drawn as a marker, never as a fill, so the squares
+     underneath keep the contrast the board test above measures. */
+  --color-move-hint: #127a3f;
+
   /* Split-flap clock. Not a surface: a physical display bolted to the
      page, so it keeps dark boards and bright digits in both palettes and
      does not follow the canvas at all. In dark mode the board lifts and
@@ -211,6 +217,10 @@
 
   --color-board-light: #c8bda8;
   --color-board-dark: #6e6150;
+
+  /* Lifted for the same reason the board is: a green that works on cream is
+     a green nobody can see on a shadowed square. */
+  --color-move-hint: #5fd68a;
 
   --color-flap-bg: #332d27;
   --color-flap-fg: #fbf7f1;
@@ -736,18 +746,33 @@
     animation: arb-result-in 320ms var(--ease-out-editorial) both;
   }
 
-  /* The paint is drawn on, not faded in: a tag appears with the marker
-     moving. `pathLength="1"` on the paths normalises them, so one dash
-     value works for a 20px flick and a 200px sweep. */
-  .result-spray {
-    stroke-dasharray: 1;
-    stroke-dashoffset: 1;
-    animation: arb-spray 620ms var(--ease-out-editorial) 140ms forwards;
+  /* ── The celebration ─────────────────────────────────────────
+     Paper falling. Every piece carries its own falling distance, drift,
+     spin and delay as custom properties, so one keyframe drives thirty
+     different paths — and because the values are declared per piece rather
+     than randomised at render time, the burst is identical every time it is
+     drawn instead of being a new animation on every re-render. */
+  .confetti {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
   }
 
-  .result-spray--slow {
-    animation-duration: 820ms;
-    animation-delay: 260ms;
+  .confetti__piece {
+    position: absolute;
+    top: -12%;
+    left: var(--confetti-left, 50%);
+    width: var(--confetti-width, 8px);
+    height: var(--confetti-height, 14px);
+    background: var(--confetti-colour, var(--color-accent));
+    opacity: 0;
+    animation: arb-confetti-fall var(--confetti-duration, 2.4s) linear
+      var(--confetti-delay, 0s) forwards;
+  }
+
+  .confetti__piece--thin {
+    width: 4px;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -766,9 +791,10 @@
       animation: none;
     }
 
-    .result-spray {
-      animation: none;
-      stroke-dashoffset: 0;
+    /* Confetti IS the motion. Held still it is just litter on the dialog,
+       so it is removed rather than frozen. */
+    .confetti {
+      display: none;
     }
   }
 }
@@ -811,9 +837,18 @@
   }
 }
 
-@keyframes arb-spray {
-  to {
-    stroke-dashoffset: 0;
+@keyframes arb-confetti-fall {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  8% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(var(--confetti-drift, 0px), var(--confetti-fall, 640px), 0)
+      rotate(var(--confetti-spin, 540deg));
   }
 }
 

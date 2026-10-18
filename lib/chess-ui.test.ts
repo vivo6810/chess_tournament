@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  fenAfter,
+  isLegalMove,
   isPromotion,
   isTapEcho,
   kingSquare,
@@ -11,6 +13,7 @@ import {
   resolveDrop,
   resolveTap,
   sideOn,
+  takeNextPremove,
   TAP_ECHO_MS,
   targetsFrom,
   withTurn,
@@ -124,6 +127,97 @@ test('a premove queue replays our moves and hands the turn back', () => {
 test('an illegal premove stops the replay instead of corrupting it', () => {
   const queued = premoveFen(START, [{ from: 'e2', to: 'e5' }], 'w');
   assert.match(queued, /^rnbqkbnr\/pppppppp\/8\/8\/8\/8\/PPPPPPP/);
+});
+
+/* ── Castling ────────────────────────────────────────────────────
+   Every rule a king has to satisfy to castle, asked the way the boards ask
+   it. The reported bug was a castle being played in a position where an enemy
+   knight had taken one of those rules away, so each rule gets its own case. */
+
+const OPEN_ROOKS = 'r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1';
+
+/** Knight on d2: it attacks f1, the square a kingside castle crosses. */
+const KNIGHT_ON_D2 = 'r3k2r/8/8/8/8/8/3n4/R3K2R w KQkq - 0 1';
+
+/** Black rook down the open e-file: white is in check. */
+const IN_CHECK = '4r1k1/8/8/8/8/8/8/R3K2R w KQ - 0 1';
+
+/** Own bishop on f1: the king has somewhere to be but no way through. */
+const F1_OCCUPIED = '4k3/8/8/8/8/8/8/R3KB1R w KQ - 0 1';
+
+/** The right itself was lost — the FEN no longer carries `K`. */
+const NO_RIGHTS = '4k3/8/8/8/8/8/8/R3K2R w k - 0 1';
+
+test('a castle is offered when the king has a clear, safe path', () => {
+  const targets = targetsFrom(OPEN_ROOKS, 'e1');
+  assert.equal(targets.find((t) => t.to === 'g1')?.castle, 'king');
+  assert.equal(targets.find((t) => t.to === 'c1')?.castle, 'queen');
+  assert.equal(isLegalMove(OPEN_ROOKS, 'e1', 'g1'), true);
+});
+
+test('no castle through a square an enemy knight attacks', () => {
+  /* d2 is not check — the king is safe where it stands — but f1 is covered. */
+  const targets = targetsFrom(KNIGHT_ON_D2, 'e1');
+  assert.equal(
+    targets.some((t) => t.castle === 'king'),
+    false,
+    'the king would walk across f1, which the knight on d2 attacks',
+  );
+  assert.equal(isLegalMove(KNIGHT_ON_D2, 'e1', 'g1'), false);
+  assert.equal(fenAfter(KNIGHT_ON_D2, 'e1', 'g1'), null);
+});
+
+test('no castle out of check, onto an attacked square, through a piece, or without rights', () => {
+  assert.equal(isLegalMove(IN_CHECK, 'e1', 'g1'), false, 'in check');
+  assert.equal(isLegalMove(F1_OCCUPIED, 'e1', 'g1'), false, 'f1 occupied');
+  assert.equal(isLegalMove(NO_RIGHTS, 'e1', 'g1'), false, 'right already given up');
+});
+
+test('a premoved castle the reply has taken away is dropped, not played', () => {
+  /* While black is thinking, white plans O-O. That is checked against the
+     position white will be moving in, so the plan is sound when it is made. */
+  const planned = withTurn(OPEN_ROOKS, 'w');
+  assert.equal(isLegalMove(planned, 'e1', 'g1'), true);
+
+  /* Black answers ...Nd2. The guess did not come off: f1 is attacked now, and
+     the queued move has to be judged again in the real position. */
+  const afterReply = KNIGHT_ON_D2;
+  assert.deepEqual(takeNextPremove(afterReply, [{ from: 'e1', to: 'g1' }]), {
+    status: 'illegal',
+  });
+});
+
+test('a premove that is still legal is played, and hands back the rest', () => {
+  const queue = [
+    { from: 'e2', to: 'e4' },
+    { from: 'g1', to: 'f3' },
+  ];
+  const afterBlack = 'rnbqkbnr/pppp1ppp/8/4p3/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 2';
+  const step = takeNextPremove(afterBlack, queue);
+
+  assert.equal(step.status, 'play');
+  if (step.status !== 'play') return;
+  assert.deepEqual(step.move, { from: 'e2', to: 'e4' });
+  assert.deepEqual(step.rest, [{ from: 'g1', to: 'f3' }]);
+  assert.match(step.fen, /\/4P3\/8\/PPPP1PPP/);
+});
+
+test('an empty premove queue is not an illegal one', () => {
+  assert.deepEqual(takeNextPremove(OPEN_ROOKS, []), { status: 'empty' });
+});
+
+test('a pinned piece is only offered the squares that keep the king safe', () => {
+  /* Rook e2 in front of its own king, black rook on e8: sideways is suicide. */
+  const pinned = '4r1k1/8/8/8/8/8/4R3/4K3 w - - 0 1';
+  assert.deepEqual(targetsFrom(pinned, 'e2').map((t) => t.to).sort(), [
+    'e3',
+    'e4',
+    'e5',
+    'e6',
+    'e7',
+    'e8',
+  ]);
+  assert.equal(isLegalMove(pinned, 'e2', 'd2'), false);
 });
 
 /* ── Reading the result ────────────────────────────────────────── */

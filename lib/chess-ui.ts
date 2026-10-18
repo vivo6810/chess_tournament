@@ -96,6 +96,39 @@ export function isPromotion(fen: string, from: string, to: string, side?: Side):
   return targetsFrom(fen, from, side).some((target) => target.to === to && target.promotion);
 }
 
+/**
+ * Whether this exact move is legal in this exact position.
+ *
+ * This is the only gate a move passes through before it reaches a board, and it
+ * has to be asked against the *real* position every time — never against a
+ * previewed one. `chess.js` is the authority on the awkward cases, and it gets
+ * them all right: a castle is refused when the king is in check, when it would
+ * cross or land on an attacked square, when the rook or king has already moved
+ * (the FEN has lost the right), or when the squares between them are occupied.
+ * The one thing it cannot know is what the opponent is *about* to play, which is
+ * exactly what a premove guesses — see `takeNextPremove`.
+ */
+export function isLegalMove(fen: string, from: string, to: string, promotion?: string): boolean {
+  if (!/^[a-h][1-8]$/.test(from) || !/^[a-h][1-8]$/.test(to)) return false;
+  try {
+    const game = new Chess(fen);
+    return Boolean(game.move({ from, to, promotion: promotion ?? 'q' }));
+  } catch {
+    return false;
+  }
+}
+
+/** The position after a move, or null when the move is not legal. */
+export function fenAfter(fen: string, from: string, to: string, promotion?: string): string | null {
+  try {
+    const game = new Chess(fen);
+    const applied = game.move({ from, to, promotion: promotion ?? 'q' });
+    return applied ? game.fen() : null;
+  } catch {
+    return null;
+  }
+}
+
 /** The side that owns the piece on a square, or null when it is empty. */
 export function sideOn(fen: string, square: string): Side | null {
   try {
@@ -227,6 +260,36 @@ export function premoveFen(fen: string, queue: MoveAttempt[], side: Side): strin
   }
 
   return withTurn(current.fen(), other(side));
+}
+
+/**
+ * What a premove queue means once the opponent's reply has actually arrived.
+ *
+ * A premove is a guess made while the opponent is thinking, so it is planned
+ * against a position they have not answered yet. When their reply lands, the
+ * head of the queue has to be judged again — in the real position. This is the
+ * whole safety property of premoves, and it is the thing that goes wrong when a
+ * queued castle is played even though the reply took it away: an enemy piece
+ * landing on a square the king has to cross, a check, or the loss of the right
+ * itself all make the move illegal, and the queue must be dropped rather than
+ * half-played.
+ *
+ * `illegal` is not an error state — it is the expected outcome of a guess that
+ * did not come off, and the caller clears the queue and says so.
+ */
+export type PremoveStep =
+  | { status: 'empty' }
+  | { status: 'illegal' }
+  | { status: 'play'; move: MoveAttempt; rest: MoveAttempt[]; fen: string };
+
+export function takeNextPremove(fen: string, queue: MoveAttempt[]): PremoveStep {
+  if (queue.length === 0) return { status: 'empty' };
+
+  const [move, ...rest] = queue;
+  const next = fenAfter(fen, move.from, move.to, move.promotion);
+  if (!next) return { status: 'illegal' };
+
+  return { status: 'play', move, rest, fen: next };
 }
 
 export type OutcomeKind = 'win' | 'loss' | 'draw';
