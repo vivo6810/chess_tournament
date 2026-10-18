@@ -1,7 +1,15 @@
 'use client';
 
 import { Chess } from 'chess.js';
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
 import { Chessboard, defaultPieces, type PieceRenderObject } from 'react-chessboard';
 
 import EnginePanel from '@/components/engine-panel';
@@ -94,7 +102,6 @@ export default function GameBoard({
   const [confirmResign, setConfirmResign] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [now, setNow] = useState(() => Date.now());
   const [dismissed, setDismissed] = useState<string | null>(null);
 
   /* The server hands back its own timestamp with every poll, so the client can
@@ -110,12 +117,29 @@ export default function GameBoard({
      which is exactly what a dead board feels like. */
   const lastTapRef = useRef<{ square: string; at: number } | null>(null);
 
+  /* The last payload the server sent, so an unchanged one can be thrown away.
+     The poll runs whether or not anything happened, and a spectator watching a
+     quiet position would otherwise rebuild the whole board every 1.2 seconds to
+     draw exactly the same pixels. */
+  const lastPollRef = useRef<string | null>(null);
+
   const refresh = useCallback(async () => {
     try {
       const response = await fetch(`/api/games/${initial.game.id}`, { cache: 'no-store' });
       if (!response.ok) return;
       const next = (await response.json()) as GameState;
+
+      /* The offset is always taken: it is what keeps the local clock honest
+         against the server's, and it costs no render. */
       offsetRef.current = next.clock.serverNow - Date.now();
+
+      const fingerprint = JSON.stringify({ ...next, clock: { ...next.clock, serverNow: 0 } });
+      if (fingerprint === lastPollRef.current) {
+        setOptimisticFen(null);
+        return;
+      }
+
+      lastPollRef.current = fingerprint;
       setState(next);
       setOptimisticFen(null);
     } catch {
@@ -127,11 +151,6 @@ export default function GameBoard({
     const poll = setInterval(refresh, pollMs);
     return () => clearInterval(poll);
   }, [refresh, pollMs]);
-
-  useEffect(() => {
-    const tick = setInterval(() => setNow(Date.now()), 100);
-    return () => clearInterval(tick);
-  }, []);
 
   const { game, clock, seats } = state;
   const serverFen = game.fen;
@@ -169,15 +188,6 @@ export default function GameBoard({
     setSelected(null);
     setQueue([]);
   }, [finished]);
-
-  const remaining = useMemo(() => {
-    const elapsed = now + offsetRef.current - clock.turnStartedAt;
-    if (finished) return { whiteMs: clock.whiteMs, blackMs: clock.blackMs };
-    if (turn === 'w') {
-      return { whiteMs: Math.max(0, clock.whiteMs - elapsed), blackMs: clock.blackMs };
-    }
-    return { whiteMs: clock.whiteMs, blackMs: Math.max(0, clock.blackMs - elapsed) };
-  }, [now, clock, turn, finished]);
 
   const submit = useCallback(
     async (from: string, to: string, promotion?: string) => {
@@ -472,9 +482,12 @@ export default function GameBoard({
 
         <PlayerBar
           name={game.black.name}
-          ms={remaining.blackMs}
+          clock={clock}
+          side="b"
           active={!finished && turn === 'b'}
+          finished={finished}
           control={game.timeControl}
+          offsetRef={offsetRef}
         />
 
         <div
@@ -554,9 +567,12 @@ export default function GameBoard({
 
         <PlayerBar
           name={game.white.name}
-          ms={remaining.whiteMs}
+          clock={clock}
+          side="w"
           active={!finished && turn === 'w'}
+          finished={finished}
           control={game.timeControl}
+          offsetRef={offsetRef}
         />
 
         {/* The status line is the board's caption: whose turn, and what a click
@@ -794,15 +810,40 @@ export default function GameBoard({
 
 function PlayerBar({
   name,
-  ms,
+  clock,
+  side,
   active,
+  finished,
   control,
+  offsetRef,
 }: {
   name: string;
-  ms: number;
+  clock: GameState['clock'];
+  side: Side;
   active: boolean;
+  finished: boolean;
   control: TimeControl;
+  offsetRef: { current: number };
 }) {
+  /* The clock is the only thing on this page that changes ten times a second,
+     so it is the only thing that ticks ten times a second. Keeping the interval
+     in this leaf means the board, the move list and the engine panel are not
+     rebuilt to move two digits — the whole page used to re-render at 10 Hz for
+     a value that changes once a second. */
+  const [, tick] = useReducer((count: number) => count + 1, 0);
+
+  useEffect(() => {
+    if (!active) return undefined;
+    const id = setInterval(tick, 100);
+    return () => clearInterval(id);
+  }, [active]);
+
+  const bank = side === 'w' ? clock.whiteMs : clock.blackMs;
+  const running = active && !finished;
+  const ms = running
+    ? Math.max(0, bank - (Date.now() + offsetRef.current - clock.turnStartedAt))
+    : bank;
+
   return (
     <div
       className={`flex items-center justify-between gap-3 border-2 border-line px-3 py-2 sm:px-4 sm:py-2.5 ${

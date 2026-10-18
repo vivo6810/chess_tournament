@@ -47,14 +47,6 @@ const HINT_RING: CSSProperties = {
     'radial-gradient(circle at 50% 50%, transparent 0 35%, var(--color-move-hint) 36% 47%, var(--color-ink) 48% 52%, transparent 53%)',
 };
 
-function inCheck(fen: string): boolean {
-  try {
-    return new Chess(fen).isCheck();
-  } catch {
-    return false;
-  }
-}
-
 /**
  * The landing page's real board.
  *
@@ -271,16 +263,9 @@ export default function HeroArena() {
       styles[square] = { ...(styles[square] ?? {}), ...style };
     };
 
-    /* The last move, so a player who looks away can see what happened. */
-    const history = game.history({ verbose: true });
-    const last = history[history.length - 1];
-    if (last) {
-      for (const square of [last.from, last.to]) {
-        paint(square, { boxShadow: 'inset 0 0 0 3px var(--color-line-strong)' });
-      }
-    }
-
-    if (!over && inCheck(fen)) {
+    /* `game` is built from a FEN, which carries no move list, so there is no
+       last move to mark here — the check ring is the only state this paints. */
+    if (!over && game.isCheck()) {
       const king = kingSquare(fen, turn);
       if (king) paint(king, { boxShadow: 'inset 0 0 0 4px var(--color-loss-fg)' });
     }

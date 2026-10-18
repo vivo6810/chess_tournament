@@ -42,6 +42,16 @@ type Pending = {
   last: EngineScore;
 };
 
+/**
+ * Runs one Stockfish worker for the life of the component.
+ *
+ * The worker is *scheduled*, not created inline: it is a 1.8 MB WebAssembly
+ * binary plus its glue, and fetching that during the first paint puts it in a
+ * race with the stylesheet, the fonts and the page's own animations. Nobody can
+ * move a piece before the page is usable, so the engine is started once the
+ * browser reports it is idle — with a timer for browsers that lack
+ * `requestIdleCallback`.
+ */
 export function useEngine() {
   const workerRef = useRef<Worker | null>(null);
   const pendingRef = useRef<Pending | null>(null);
@@ -49,24 +59,13 @@ export function useEngine() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let worker: Worker;
-    try {
-      /* The engine is served from /public/engine and instantiated by a
-         same-origin URL rather than bundled. The emscripten glue is the worker
-         entry point itself, so wrapping it in another worker breaks it. */
-      worker = new Worker('/engine/stockfish-19-lite-single.js');
-    } catch {
-      setError('The engine could not be loaded in this browser.');
-      return undefined;
-    }
+    let cancelled = false;
 
-    workerRef.current = worker;
-
-    worker.onmessage = (event: MessageEvent) => {
+    const handleMessage = (event: MessageEvent) => {
       const line = String(event.data);
 
       if (line === 'uciok') {
-        worker.postMessage('isready');
+        workerRef.current?.postMessage('isready');
         return;
       }
       if (line === 'readyok') {
@@ -94,11 +93,38 @@ export function useEngine() {
       }
     };
 
-    worker.onerror = () => setError('The engine failed to start.');
-    worker.postMessage('uci');
+    const boot = () => {
+      if (cancelled) return;
+      try {
+        /* The engine is served from /public/engine and instantiated by a
+           same-origin URL rather than bundled. The emscripten glue is the
+           worker entry point itself, so wrapping it in another worker breaks
+           it. */
+        const worker = new Worker('/engine/stockfish-19-lite-single.js');
+        workerRef.current = worker;
+        worker.onmessage = handleMessage;
+        worker.onerror = () => setError('The engine failed to start.');
+        worker.postMessage('uci');
+      } catch {
+        setError('The engine could not be loaded in this browser.');
+      }
+    };
+
+    const schedule = (callback: () => void) => {
+      if (typeof window.requestIdleCallback === 'function') {
+        const id = window.requestIdleCallback(callback, { timeout: 2000 });
+        return () => window.cancelIdleCallback(id);
+      }
+      const id = window.setTimeout(callback, 400);
+      return () => window.clearTimeout(id);
+    };
+
+    const cancelBoot = schedule(boot);
 
     return () => {
-      worker.terminate();
+      cancelled = true;
+      cancelBoot();
+      workerRef.current?.terminate();
       workerRef.current = null;
       pendingRef.current = null;
     };

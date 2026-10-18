@@ -2,8 +2,7 @@ import { notFound } from 'next/navigation';
 
 import GameBoard, { type GameState } from '@/components/game-board';
 import { getCurrentUser } from '@/lib/auth';
-import { db } from '@/lib/db';
-import { START_FEN, getGame, getTournamentById, movesOf } from '@/lib/service';
+import { START_FEN, getGameWithPlayers, getTournamentById, movesOf } from '@/lib/service';
 import { getTimeControl } from '@/lib/time-controls';
 
 export const dynamic = 'force-dynamic';
@@ -13,20 +12,13 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
   const gameId = Number(id);
   if (!Number.isInteger(gameId) || gameId <= 0) notFound();
 
-  const game = getGame(gameId);
+  /* One read for the game and the two names at the board — the same row the
+     poll endpoint returns, assembled the same way. */
+  const game = getGameWithPlayers(gameId);
   if (!game) notFound();
 
-  const players = db
-    .prepare('SELECT id, name, user_id FROM tournament_players WHERE id IN (?, ?)')
-    .all(game.white_player_id, game.black_player_id) as {
-    id: number;
-    name: string;
-    user_id: number | null;
-  }[];
-  const byId = new Map(players.map((row) => [row.id, row]));
-
-  const white = byId.get(game.white_player_id);
-  const black = byId.get(game.black_player_id);
+  const white = { name: game.white_name, user_id: game.white_user_id };
+  const black = { name: game.black_name, user_id: game.black_user_id };
 
   const user = await getCurrentUser();
   const tournament = game.tournament_id ? getTournamentById(game.tournament_id) : null;

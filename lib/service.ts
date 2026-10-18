@@ -80,6 +80,56 @@ export function getGame(id: number): GameRow | null {
   return (db.prepare('SELECT * FROM games WHERE id = ?').get(id) as GameRow) ?? null;
 }
 
+/**
+ * A game together with the two names at the board.
+ *
+ * One query rather than three: the game, then one lookup per player, is three
+ * round trips for a response the game page re-fetches every second. The seats
+ * are foreign keys, so the join cannot drop a row a plain lookup would have
+ * found.
+ */
+export type GameWithPlayers = GameRow & {
+  white_name: string;
+  white_user_id: number | null;
+  black_name: string;
+  black_user_id: number | null;
+};
+
+export function getGameWithPlayers(id: number): GameWithPlayers | null {
+  return (
+    (db
+      .prepare(
+        `SELECT g.*,
+                wp.name AS white_name, wp.user_id AS white_user_id,
+                bp.name AS black_name, bp.user_id AS black_user_id
+         FROM games g
+         JOIN tournament_players wp ON wp.id = g.white_player_id
+         JOIN tournament_players bp ON bp.id = g.black_player_id
+         WHERE g.id = ?`,
+      )
+      .get(id) as GameWithPlayers) ?? null
+  );
+}
+
+/**
+ * The games for a set of ids, in one query.
+ *
+ * The round view needs a game per board; asking for them one at a time is a
+ * query per board per page load for no reason, since a round is always viewed
+ * whole.
+ */
+export function getGamesByIds(ids: number[]): Map<number, GameRow> {
+  const unique = [...new Set(ids.filter((id) => Number.isInteger(id) && id > 0))];
+  if (unique.length === 0) return new Map();
+
+  const placeholders = unique.map(() => '?').join(', ');
+  const rows = db
+    .prepare(`SELECT * FROM games WHERE id IN (${placeholders})`)
+    .all(...unique) as GameRow[];
+
+  return new Map(rows.map((row) => [row.id, row]));
+}
+
 export function resultsFor(tournamentId: number): ResultInput[] {
   const rows = listPairings(tournamentId);
   return rows.map((row) => ({
@@ -114,11 +164,16 @@ export type PairingView = {
 
 export function roundView(tournamentId: number, round: number): PairingView[] {
   const players = new Map(listPlayers(tournamentId).map((p) => [p.id, p.name]));
-  return listPairings(tournamentId, round).map((pairing) => ({
+  const pairings = listPairings(tournamentId, round);
+  const games = getGamesByIds(
+    pairings.map((pairing) => pairing.game_id).filter((id): id is number => id != null),
+  );
+
+  return pairings.map((pairing) => ({
     pairing,
     whiteName: pairing.white_id ? players.get(pairing.white_id) ?? null : null,
     blackName: pairing.black_id ? players.get(pairing.black_id) ?? null : null,
-    game: pairing.game_id ? getGame(pairing.game_id) : null,
+    game: pairing.game_id ? games.get(pairing.game_id) ?? null : null,
   }));
 }
 
