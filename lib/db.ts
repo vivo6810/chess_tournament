@@ -1,5 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 /**
@@ -9,7 +10,26 @@ import path from 'node:path';
  * means changing this file and the queries, not the domain logic.
  */
 
-const DB_PATH = process.env.DATABASE_PATH ?? path.join(process.cwd(), 'data', 'arbiter.db');
+/**
+ * Where the database file lives.
+ *
+ * A serverless host mounts the deployment itself read-only — the repo's
+ * `data/arbiter.db` is readable but not writable, and creating a new file
+ * beside it fails with "unable to open database file". The only writable
+ * directory in such a runtime is the OS temp directory, so on a hosted
+ * function we keep the database there. That directory is per instance: the
+ * data survives as long as the instance does, which keeps every page working
+ * and a game in progress playable, but it is not durable storage. A durable
+ * deployment sets `DATABASE_PATH` to a mounted volume or swaps this file for a
+ * hosted database client.
+ */
+function defaultDbPath(): string {
+  const hosted = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+  if (hosted) return path.join(os.tmpdir(), 'arbiter-data', 'arbiter.db');
+  return path.join(process.cwd(), 'data', 'arbiter.db');
+}
+
+const DB_PATH = process.env.DATABASE_PATH ?? defaultDbPath();
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS users (
@@ -113,14 +133,35 @@ function migrate(database: DatabaseSync): void {
   }
 }
 
-function open(): DatabaseSync {
-  if (DB_PATH !== ':memory:') mkdirSync(path.dirname(DB_PATH), { recursive: true });
-  const database = new DatabaseSync(DB_PATH);
+function openAt(file: string): DatabaseSync {
+  if (file !== ':memory:') mkdirSync(path.dirname(file), { recursive: true });
+  const database = new DatabaseSync(file);
   database.exec('PRAGMA journal_mode = WAL;');
   database.exec('PRAGMA foreign_keys = ON;');
+  /* Two concurrent requests on the same instance can reach the file at once.
+     Waiting for the lock beats failing the request. */
+  database.exec('PRAGMA busy_timeout = 5000;');
   database.exec(SCHEMA);
   migrate(database);
   return database;
+}
+
+/**
+ * Opening the file is the step that can fail on a read-only host. Falling back
+ * to an in-memory database keeps the app rendering instead of turning every
+ * data-backed page into a 500, so a misconfigured deployment degrades to empty
+ * pages that still work rather than to an error screen.
+ */
+function open(): DatabaseSync {
+  if (DB_PATH === ':memory:') return openAt(':memory:');
+  try {
+    return openAt(DB_PATH);
+  } catch (error) {
+    console.error(
+      `[db] cannot open ${DB_PATH} (${(error as Error).message}); falling back to an in-memory database for this instance.`,
+    );
+    return openAt(':memory:');
+  }
 }
 
 /* Next re-evaluates modules on every hot reload in development, which would
