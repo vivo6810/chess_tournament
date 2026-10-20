@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import TournamentControls from '@/components/tournament-controls';
-import { getCurrentUser } from '@/lib/auth';
+import { getCurrentUser, isAdmin } from '@/lib/auth';
 import {
   getTournamentBySlug,
   listPlayers,
@@ -26,7 +26,8 @@ export default async function TournamentPage({ params }: { params: Promise<{ slu
   if (!tournament) notFound();
 
   const user = await getCurrentUser();
-  const isHost = user != null && user.id === tournament.host_id;
+  /* The built-in admin runs every event, not just the ones it created. */
+  const isHost = isAdmin(user) || (user != null && user.id === tournament.host_id);
 
   const players = listPlayers(tournament.id);
   const active = new Set(players.filter((player) => player.withdrawn === 0).map((p) => p.id));

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { ADMIN_HINT_COOKIE } from '@/lib/admin';
 import { jsonError, handleError, readJson } from '@/lib/api';
 import {
   SESSION_COOKIE,
@@ -47,6 +48,8 @@ export async function POST(request: Request) {
     const { token } = createSession(user.id);
     const response = NextResponse.json({ user: toPublicUser(user) });
     response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions);
+    /* Signing up always lands on a normal account, so drop any admin nav hint. */
+    response.cookies.set(ADMIN_HINT_COOKIE, '', { path: '/', maxAge: 0 });
     return response;
   } catch (error) {
     return handleError(error);

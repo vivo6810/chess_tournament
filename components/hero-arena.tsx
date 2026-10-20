@@ -317,7 +317,7 @@ export default function HeroArena() {
             : 'Your move. Click a piece to see where it can go.'
         : queue.length > 0
           ? `${queue.length} premove${queue.length === 1 ? '' : 's'} queued — waiting for Stockfish.`
-          : 'Stockfish to move. Click a piece to plan a premove.';
+          : 'Stockfish to move.';
 
   return (
     <div className="relative overflow-hidden border-2 border-ink bg-surface p-2.5 shadow-brut-lg sm:p-3">

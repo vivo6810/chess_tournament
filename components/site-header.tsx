@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
+import AdminLink from '@/components/admin-link';
 import GooeyNav, { type GooeyNavItem } from '@/components/gooey-nav/GooeyNav';
 import ThemeToggle from '@/components/theme-toggle';
 import { useTheme } from '@/lib/use-theme';
@@ -86,6 +87,7 @@ export default function SiteHeader() {
                push cut off the press animation the first one started. */
             linkComponent={Link}
           />
+          <AdminLink className="press flex-none border-2 border-line-strong bg-bone px-2 py-1.5 font-mono text-[10px] font-bold tracking-[0.12em] text-ink uppercase shadow-brut-sm hover:bg-surface" />
           <ThemeToggle />
         </div>
 
@@ -145,6 +147,11 @@ export default function SiteHeader() {
         className="absolute inset-x-0 top-full z-50 border-b-2 border-line bg-canvas shadow-brut md:hidden"
       >
         <ul className="mx-auto max-w-6xl px-3 py-2">
+          <AdminLink
+            asListItem
+            className="flex min-h-12 items-center border-2 border-transparent px-3 font-mono text-[12px] font-bold tracking-[0.12em] text-ink uppercase hover:bg-bone"
+          />
+
           {NAV.map((item, index) => {
             const isActive = index === active;
             return (

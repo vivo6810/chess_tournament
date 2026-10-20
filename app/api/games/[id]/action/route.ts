@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { handleError, jsonError, parseId, readJson, requireUser } from '@/lib/api';
+import { isAdmin } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { finishGame, getGame, getTournamentById } from '@/lib/service';
 
@@ -44,7 +45,9 @@ export async function POST(request: Request, { params }: Params) {
       whiteUserId === viewerId ? 'white' : blackUserId === viewerId ? 'black' : null;
 
     const tournament = game.tournament_id ? getTournamentById(game.tournament_id) : null;
-    const isHost = tournament?.host_id === viewerId;
+    /* The admin settles any board: the account exists so a stuck game can be
+       finished from anywhere, including one nobody at the board can reach. */
+    const isHost = isAdmin(auth.user) || tournament?.host_id === viewerId;
 
     const body = await readJson<{ action: string; side: 'white' | 'black' }>(request);
     const action = typeof body.action === 'string' ? body.action : '';

@@ -3,6 +3,9 @@ import { mkdirSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import { ADMIN_PASSWORD_FALLBACK, ADMIN_USERNAME } from './admin';
+import { hashPassword } from './password';
+
 /**
  * Storage is local SQLite through Node's built-in `node:sqlite`, so the app
  * runs with no external service, no API key, and no native compilation step.
@@ -133,6 +136,31 @@ function migrate(database: DatabaseSync): void {
   }
 }
 
+/**
+ * Creates the built-in admin account the first time a database is opened.
+ *
+ * Doing it here rather than in a migration or a script means every instance has
+ * the account — including the short-lived one a serverless host hands out — and
+ * that the name is taken before anyone can register it. Existing rows are left
+ * alone, so a password changed through `ADMIN_PASSWORD` on a later boot is not
+ * silently rewritten back to the default.
+ */
+function seedAdmin(database: DatabaseSync): void {
+  const taken = database
+    .prepare('SELECT 1 FROM users WHERE username_key = ?')
+    .get(ADMIN_USERNAME);
+  if (taken) return;
+
+  const password = process.env.ADMIN_PASSWORD?.trim() || ADMIN_PASSWORD_FALLBACK;
+  /* `Date.now()` rather than the `now` helper below: this runs while the module
+     is still evaluating `db`, and `now` is declared after it. */
+  database
+    .prepare(
+      'INSERT INTO users (username, username_key, password_hash, rating, created_at) VALUES (?, ?, ?, 1200, ?)',
+    )
+    .run(ADMIN_USERNAME, ADMIN_USERNAME, hashPassword(password), Date.now());
+}
+
 function openAt(file: string): DatabaseSync {
   if (file !== ':memory:') mkdirSync(path.dirname(file), { recursive: true });
   const database = new DatabaseSync(file);
@@ -143,6 +171,7 @@ function openAt(file: string): DatabaseSync {
   database.exec('PRAGMA busy_timeout = 5000;');
   database.exec(SCHEMA);
   migrate(database);
+  seedAdmin(database);
   return database;
 }
 

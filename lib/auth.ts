@@ -1,37 +1,17 @@
-import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { cookies } from 'next/headers';
 
+import { ADMIN_USERNAME } from './admin';
 import { db, now, type UserRow } from './db';
+import { hashPassword, verifyPassword } from './password';
 
 export const SESSION_COOKIE = 'arbiter_session';
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const SCRYPT_KEYLEN = 64;
 
-/**
- * Passwords are stored as `scrypt$<salt>$<key>`. scrypt is deliberately slow and
- * memory-hard, which is what makes an offline guess against a stolen database
- * expensive. Each password gets its own 16-byte salt so identical passwords
- * never produce identical hashes.
- */
-export function hashPassword(password: string): string {
-  const salt = randomBytes(16);
-  const key = scryptSync(password, salt, SCRYPT_KEYLEN);
-  return `scrypt$${salt.toString('hex')}$${key.toString('hex')}`;
-}
-
-export function verifyPassword(password: string, stored: string): boolean {
-  const [scheme, saltHex, keyHex] = stored.split('$');
-  if (scheme !== 'scrypt' || !saltHex || !keyHex) return false;
-  const expected = Buffer.from(keyHex, 'hex');
-  let candidate: Buffer;
-  try {
-    candidate = scryptSync(password, Buffer.from(saltHex, 'hex'), expected.length);
-  } catch {
-    return false;
-  }
-  // Constant-time compare — a length or timing difference leaks information.
-  return expected.length === candidate.length && timingSafeEqual(expected, candidate);
-}
+/* The hashing lives in ./password so the database seed can use it without this
+   module's dependency on the database. Re-exported, because registering a user
+   is the only thing that needs it and it belongs to the auth vocabulary. */
+export { hashPassword, verifyPassword };
 
 export const normalizeUsername = (username: string) => username.trim().toLowerCase();
 
@@ -42,6 +22,17 @@ export const toPublicUser = (row: UserRow): PublicUser => ({
   username: row.username,
   rating: row.rating,
 });
+
+/**
+ * Whether this session belongs to the built-in admin.
+ *
+ * The username is the identity: `username_key` is unique and "admin" is taken
+ * by the seed before anyone can register, so no ordinary account can collide
+ * with it.
+ */
+export function isAdmin(user: PublicUser | null): boolean {
+  return user != null && normalizeUsername(user.username) === ADMIN_USERNAME;
+}
 
 const lastSeen = new Map<number, number>();
 

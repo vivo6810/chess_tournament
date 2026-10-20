@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { handleError, jsonError, requireUser } from '@/lib/api';
+import { isAdmin } from '@/lib/auth';
 import { getTournamentBySlug, roundView, startTournament, standingsFor } from '@/lib/service';
 
 type Params = { params: Promise<{ slug: string }> };
@@ -13,7 +14,7 @@ export async function POST(_request: Request, { params }: Params) {
     const { slug } = await params;
     const tournament = getTournamentBySlug(slug);
     if (!tournament) return jsonError('Tournament not found.', 404);
-    if (tournament.host_id !== auth.user.id) {
+    if (!isAdmin(auth.user) && tournament.host_id !== auth.user.id) {
       return jsonError('Only the host can start this tournament.', 403);
     }
 

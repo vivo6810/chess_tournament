@@ -13,7 +13,7 @@ const COLUMNS = [
     title: 'Study',
     links: [
       { label: 'Analysis board', href: '/analysis' },
-      { label: 'Sign in', href: '/signin' },
+      { label: 'Sign in', href: '/login' },
     ],
   },
 ];

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { ADMIN_HINT_COOKIE, ADMIN_USERNAME } from '@/lib/admin';
 import { jsonError, handleError, readJson } from '@/lib/api';
 import {
   SESSION_COOKIE,
@@ -30,6 +31,18 @@ export async function POST(request: Request) {
     const { token } = createSession(user.id);
     const response = NextResponse.json({ user: toPublicUser(user) });
     response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions);
+
+    /* Only the nav link depends on this; see `ADMIN_HINT_COOKIE`. */
+    if (user.username_key === ADMIN_USERNAME) {
+      response.cookies.set(ADMIN_HINT_COOKIE, '1', {
+        httpOnly: false,
+        sameSite: 'lax',
+        path: '/',
+        secure: sessionCookieOptions.secure,
+        maxAge: sessionCookieOptions.maxAge,
+      });
+    }
+
     return response;
   } catch (error) {
     return handleError(error);

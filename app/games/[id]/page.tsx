@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 
 import GameBoard, { type GameState } from '@/components/game-board';
-import { getCurrentUser } from '@/lib/auth';
+import { getCurrentUser, isAdmin } from '@/lib/auth';
 import { START_FEN, getGameWithPlayers, getTournamentById, movesOf } from '@/lib/service';
 import { getTimeControl } from '@/lib/time-controls';
 
@@ -22,7 +22,8 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
 
   const user = await getCurrentUser();
   const tournament = game.tournament_id ? getTournamentById(game.tournament_id) : null;
-  const isHost = user != null && tournament?.host_id === user.id;
+  /* The built-in admin settles any board, host or not. */
+  const isHost = isAdmin(user) || (user != null && tournament?.host_id === user.id);
   /* Hosting is not playing. A host who is not one of the two account holders at
      this board gets the host controls and nothing else — the position can only
      be changed by the two people it belongs to. */
