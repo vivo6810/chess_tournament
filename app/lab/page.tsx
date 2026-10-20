@@ -90,6 +90,8 @@ export default async function LabPage() {
       timeControlId,
       playerNames: roster,
       totalRounds: 0,
+      /* Marks the event as a sandbox: its boards let an admin play both seats. */
+      sandbox: true,
     });
 
     if (formData.get('start') === 'on') startTournament(created.id);

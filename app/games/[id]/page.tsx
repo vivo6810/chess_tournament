@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 
 import GameBoard, { type GameState } from '@/components/game-board';
-import { getCurrentUser, isAdmin } from '@/lib/auth';
+import { canSettleGames, getCurrentUser } from '@/lib/auth';
 import { START_FEN, getGameWithPlayers, getTournamentById, movesOf } from '@/lib/service';
 import { getTimeControl } from '@/lib/time-controls';
 
@@ -22,13 +22,17 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
 
   const user = await getCurrentUser();
   const tournament = game.tournament_id ? getTournamentById(game.tournament_id) : null;
-  /* The built-in admin settles any board, host or not. */
-  const isHost = isAdmin(user) || (user != null && tournament?.host_id === user.id);
+  /* The admin settles any board, host or not. The owner may not — it manages
+     people, not games. */
+  const isHost = canSettleGames(user) || (user != null && tournament?.host_id === user.id);
   /* Hosting is not playing. A host who is not one of the two account holders at
      this board gets the host controls and nothing else — the position can only
-     be changed by the two people it belongs to. */
+     be changed by the two people it belongs to. The lab is the exception: its
+     events are marked as sandboxes and an admin drives both seats there. */
+  const sandboxPlay = canSettleGames(user) && tournament?.sandbox === 1;
   const isSeated =
-    user != null && (white?.user_id === user.id || black?.user_id === user.id);
+    sandboxPlay ||
+    (user != null && (white?.user_id === user.id || black?.user_id === user.id));
 
   const initial: GameState = {
     game: {
@@ -57,7 +61,7 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
       turnStartedAt: game.turn_started_at,
       serverNow: Date.now(),
     },
-    seats: { seated: isSeated, isWhite: white?.user_id === user?.id },
+    seats: { seated: isSeated, isWhite: white?.user_id === user?.id, bothSides: sandboxPlay },
   };
 
   return (
@@ -71,6 +75,12 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
           {white?.name ?? 'White'} <span className="text-muted">vs</span> {black?.name ?? 'Black'}
         </h1>
       </header>
+
+      {tournament?.suspended === 1 ? (
+        <p className="mb-5 border-2 border-loss-fg bg-loss-bg px-3 py-2 text-[12px] font-bold text-loss-fg">
+          This tournament is suspended by the owner. Moves and results are frozen until it is restored.
+        </p>
+      ) : null}
 
       <GameBoard initial={initial} canSettle={Boolean(isHost)} />
     </div>

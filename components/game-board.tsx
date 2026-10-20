@@ -55,7 +55,12 @@ export type GameState = {
     turnStartedAt: number;
     serverNow: number;
   };
-  seats: { seated: boolean; isWhite: boolean };
+  seats: {
+    seated: boolean;
+    isWhite: boolean;
+    /** A lab game: an admin may move for whichever side is to move. */
+    bothSides?: boolean;
+  };
 };
 
 /** A queue longer than this is not a plan, it is a script. */
@@ -159,8 +164,17 @@ export default function GameBoard({
 
   /* A spectator is not black. The old default handed every non-seated viewer
      the board from black's side, which reads as a flipped board for no reason. */
-  const viewerSide: Side | null = seats.seated ? (seats.isWhite ? 'w' : 'b') : null;
-  const orientation: 'white' | 'black' = viewerSide === 'b' ? 'black' : 'white';
+  const bothSides = seats.bothSides === true;
+  const viewerSide: Side | null = bothSides
+    ? turn
+    : seats.seated
+      ? seats.isWhite
+        ? 'w'
+        : 'b'
+      : null;
+  /* A sandbox board stays white-at-the-bottom: flipping it every move would
+     make the pieces jump under the hand doing the testing. */
+  const orientation: 'white' | 'black' = !bothSides && viewerSide === 'b' ? 'black' : 'white';
   const myTurn = viewerSide != null && turn === viewerSide;
   const canMove = viewerSide != null && !finished;
 
@@ -505,7 +519,7 @@ export default function GameBoard({
               onSquareClick,
               allowDragging: canMove,
               canDragPiece: ({ piece }) =>
-                viewerSide != null && piece.pieceType.charAt(0) === viewerSide,
+                bothSides || (viewerSide != null && piece.pieceType.charAt(0) === viewerSide),
               animationDurationInMs: 180,
               /* A finger always moves a few pixels while tapping. Without a
                  little slack every tap on a piece became a one-square drag —

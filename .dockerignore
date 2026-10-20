@@ -1,0 +1,8 @@
+node_modules
+.next
+.git
+.logs
+artifacts
+data
+dev.log
+*.tsbuildinfo

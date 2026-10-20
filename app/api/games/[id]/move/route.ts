@@ -2,9 +2,10 @@ import { Chess } from 'chess.js';
 import { NextResponse } from 'next/server';
 
 import { handleError, jsonError, parseId, readJson, requireUser } from '@/lib/api';
+import { canSettleGames } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { applyMove } from '@/lib/game';
-import { finishGame, getGame, movesOf } from '@/lib/service';
+import { finishGame, getGame, getTournamentById, movesOf } from '@/lib/service';
 import { getTimeControl } from '@/lib/time-controls';
 
 type Params = { params: Promise<{ id: string }> };
@@ -22,6 +23,11 @@ export async function POST(request: Request, { params }: Params) {
     if (!game) return jsonError('Game not found.', 404);
     if (game.status !== 'active') return jsonError('This game has already finished.');
 
+    const tournament = game.tournament_id ? getTournamentById(game.tournament_id) : null;
+    if (tournament?.suspended === 1) {
+      return jsonError('This tournament is suspended by the owner.', 403);
+    }
+
     /* The side to move is read from the position, never from the request. A
        client cannot move for its opponent by claiming the other colour. */
     const sideToMove = new Chess(game.fen).turn();
@@ -33,8 +39,10 @@ export async function POST(request: Request, { params }: Params) {
 
     /* Only the two account holders at this board may move. The host runs the
        event — start, draw, settle — but does not get to play someone else's
-       moves for them. */
-    if (seat?.user_id !== auth.user.id) {
+       moves for them. A lab event is the exception and is marked as one: the
+       admin is testing the board, so it plays whichever seat is to move. */
+    const sandboxPlay = tournament?.sandbox === 1 && canSettleGames(auth.user);
+    if (seat?.user_id !== auth.user.id && !sandboxPlay) {
       return jsonError('You are not seated in this game.', 403);
     }
 

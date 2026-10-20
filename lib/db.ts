@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ADMIN_PASSWORD_FALLBACK, ADMIN_USERNAME } from './admin';
+import { ADMIN_PASSWORD_FALLBACK, ADMIN_USERNAME, OWNER_PASSWORD_FALLBACK, OWNER_USERNAME, type Role } from './admin';
 import { hashPassword } from './password';
 
 /**
@@ -41,6 +41,12 @@ CREATE TABLE IF NOT EXISTS users (
   username_key  TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   rating        INTEGER NOT NULL DEFAULT 1200,
+  /* 'user' is everybody; 'admin' runs tournaments and may settle any board;
+     'owner' manages the people who use the app. */
+  role          TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin', 'owner')),
+  /* 1 means the owner has stopped this account signing in. Sessions are deleted
+     at the same moment, so the block takes effect on the next request. */
+  blacklisted   INTEGER NOT NULL DEFAULT 0,
   created_at    INTEGER NOT NULL
 );
 
@@ -62,6 +68,11 @@ CREATE TABLE IF NOT EXISTS tournaments (
   total_rounds  INTEGER NOT NULL DEFAULT 0,
   status        TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'running', 'finished')),
   current_round INTEGER NOT NULL DEFAULT 0,
+  /* A suspended event is frozen: no moves, no new round, no edits. Only the
+     owner sets this — see /owner. */
+  suspended     INTEGER NOT NULL DEFAULT 0,
+  /* Created from /lab. Sandbox games let an admin play both seats. */
+  sandbox       INTEGER NOT NULL DEFAULT 0,
   created_at    INTEGER NOT NULL,
   started_at    INTEGER
 );
@@ -125,6 +136,10 @@ CREATE INDEX IF NOT EXISTS idx_pairings_round ON pairings(tournament_id, round_n
    instance — each entry is applied only when the column is missing. */
 const ADDED_COLUMNS: { table: string; column: string; definition: string }[] = [
   { table: 'games', column: 'draw_offer_by', definition: 'INTEGER' },
+  { table: 'users', column: 'role', definition: "TEXT NOT NULL DEFAULT 'user'" },
+  { table: 'users', column: 'blacklisted', definition: 'INTEGER NOT NULL DEFAULT 0' },
+  { table: 'tournaments', column: 'suspended', definition: 'INTEGER NOT NULL DEFAULT 0' },
+  { table: 'tournaments', column: 'sandbox', definition: 'INTEGER NOT NULL DEFAULT 0' },
 ];
 
 function migrate(database: DatabaseSync): void {
@@ -134,31 +149,55 @@ function migrate(database: DatabaseSync): void {
     if (columns.some((existing) => existing.name === column)) continue;
     database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   }
+
+  /* Events created from /lab before the sandbox flag existed are still lab
+     events. The slug is what the lab generated them with, so it is the only
+     evidence available; without this they would behave like real events and the
+     admin could no longer drive both seats at their boards. */
+  database
+    .prepare("UPDATE tournaments SET sandbox = 1 WHERE sandbox = 0 AND slug LIKE 'lab-%'")
+    .run();
 }
 
 /**
- * Creates the built-in admin account the first time a database is opened.
+ * Creates the built-in accounts the first time a database is opened.
  *
  * Doing it here rather than in a migration or a script means every instance has
- * the account — including the short-lived one a serverless host hands out — and
- * that the name is taken before anyone can register it. Existing rows are left
- * alone, so a password changed through `ADMIN_PASSWORD` on a later boot is not
- * silently rewritten back to the default.
+ * them — including the short-lived one a serverless host hands out — and that
+ * the names are taken before anyone can register them. Existing rows are left
+ * alone except for their role, which is raised to the seeded role so a database
+ * that predates roles does not leave the admin as an ordinary user.
  */
-function seedAdmin(database: DatabaseSync): void {
-  const taken = database
-    .prepare('SELECT 1 FROM users WHERE username_key = ?')
-    .get(ADMIN_USERNAME);
-  if (taken) return;
+function seedAccount(
+  database: DatabaseSync,
+  username: string,
+  fallbackPassword: string,
+  passwordEnv: string,
+  role: Role,
+): void {
+  const taken = database.prepare('SELECT 1 FROM users WHERE username_key = ?').get(username);
+  if (!taken) {
+    const password = process.env[passwordEnv]?.trim() || fallbackPassword;
+    /* `Date.now()` rather than the `now` helper below: this runs while the module
+       is still evaluating `db`, and `now` is declared after it. */
+    database
+      .prepare(
+        `INSERT INTO users (username, username_key, password_hash, rating, role, blacklisted, created_at)
+         VALUES (?, ?, ?, 1200, ?, 0, ?)`,
+      )
+      .run(username, username, hashPassword(password), role, Date.now());
+    return;
+  }
 
-  const password = process.env.ADMIN_PASSWORD?.trim() || ADMIN_PASSWORD_FALLBACK;
-  /* `Date.now()` rather than the `now` helper below: this runs while the module
-     is still evaluating `db`, and `now` is declared after it. */
-  database
-    .prepare(
-      'INSERT INTO users (username, username_key, password_hash, rating, created_at) VALUES (?, ?, ?, 1200, ?)',
-    )
-    .run(ADMIN_USERNAME, ADMIN_USERNAME, hashPassword(password), Date.now());
+  /* The account exists. Only its role is enforced, never its password: an
+     operator who changed the password should not have it rewritten to the
+     published default on the next boot. */
+  database.prepare('UPDATE users SET role = ? WHERE username_key = ? AND role != ?').run(role, username, role);
+}
+
+function seedAccounts(database: DatabaseSync): void {
+  seedAccount(database, ADMIN_USERNAME, ADMIN_PASSWORD_FALLBACK, 'ADMIN_PASSWORD', 'admin');
+  seedAccount(database, OWNER_USERNAME, OWNER_PASSWORD_FALLBACK, 'OWNER_PASSWORD', 'owner');
 }
 
 function openAt(file: string): DatabaseSync {
@@ -171,7 +210,7 @@ function openAt(file: string): DatabaseSync {
   database.exec('PRAGMA busy_timeout = 5000;');
   database.exec(SCHEMA);
   migrate(database);
-  seedAdmin(database);
+  seedAccounts(database);
   return database;
 }
 
@@ -204,6 +243,8 @@ export type UserRow = {
   username_key: string;
   password_hash: string;
   rating: number;
+  role: Role;
+  blacklisted: number;
   created_at: number;
 };
 
@@ -217,6 +258,8 @@ export type TournamentRow = {
   total_rounds: number;
   status: 'draft' | 'running' | 'finished';
   current_round: number;
+  suspended: number;
+  sandbox: number;
   created_at: number;
   started_at: number | null;
 };

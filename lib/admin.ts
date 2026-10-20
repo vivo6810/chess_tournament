@@ -19,12 +19,23 @@ export const ADMIN_USERNAME = 'admin';
 export const ADMIN_PASSWORD_FALLBACK = 'admin6810';
 
 /**
+ * The owner is the account above the admin: it is not a tournament official,
+ * it owns the deployment. It seeds alongside the admin on every database and
+ * exists to manage the people who use the app — see `/owner`.
+ */
+export const OWNER_USERNAME = 'vivaan_sheth';
+
+export const OWNER_PASSWORD_FALLBACK = 'vivaan6810';
+
+export type Role = 'user' | 'admin' | 'owner';
+
+/**
  * A cosmetic hint, not a credential.
  *
  * The header is a client component and the session cookie is httpOnly, so it
- * cannot know who is signed in. This readable cookie exists only so it can put
- * a link to `/lab` in the nav. It grants nothing: every admin check reads the
- * session, and `/lab` answers 404 to anyone whose session is not the admin's.
- * Forging it reveals a link and then a 404.
+ * cannot know who is signed in. This readable cookie carries the role so the nav
+ * can offer `/lab` and `/owner`. It grants nothing: every check reads the
+ * session, and both routes answer 404 to anyone whose role does not match.
+ * Forging it reveals links and then a 404.
  */
-export const ADMIN_HINT_COOKIE = 'arbiter_admin_hint';
+export const ADMIN_HINT_COOKIE = 'arbiter_role_hint';

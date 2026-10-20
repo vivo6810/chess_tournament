@@ -43,6 +43,12 @@ export default async function TournamentPage({ params }: { params: Promise<{ slu
         <Link href="/tournaments" className="text-[13px] text-muted hover:text-ink">
           ← All tournaments
         </Link>
+        {tournament.suspended === 1 ? (
+          <p className="mt-4 border-2 border-loss-fg bg-loss-bg px-3 py-2 text-[12px] font-bold text-loss-fg">
+            Suspended by the owner. No moves, results or new rounds until it is restored.
+          </p>
+        ) : null}
+
         <div className="mt-4 flex flex-wrap items-end justify-between gap-6">
           <div>
             <h1 className="font-extrabold text-[36px] leading-[1.12] tracking-[-0.03em] text-ink">
@@ -163,6 +169,7 @@ export default async function TournamentPage({ params }: { params: Promise<{ slu
         <aside className="space-y-6">
           {isHost ? (
             <TournamentControls
+            suspended={tournament.suspended === 1}
               slug={tournament.slug}
               status={tournament.status}
               currentRound={tournament.current_round}

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { ADMIN_HINT_COOKIE, ADMIN_USERNAME } from '@/lib/admin';
+import { ADMIN_HINT_COOKIE } from '@/lib/admin';
 import { jsonError, handleError, readJson } from '@/lib/api';
 import {
   SESSION_COOKIE,
@@ -28,13 +28,19 @@ export async function POST(request: Request) {
       return jsonError('Incorrect username or password.', 401);
     }
 
+    /* The owner can stop an account. Say why, because "wrong password" for a
+       correct password is a support ticket that cannot be answered. */
+    if (user.blacklisted === 1) {
+      return jsonError('This account has been suspended.', 403);
+    }
+
     const { token } = createSession(user.id);
     const response = NextResponse.json({ user: toPublicUser(user) });
     response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions);
 
-    /* Only the nav link depends on this; see `ADMIN_HINT_COOKIE`. */
-    if (user.username_key === ADMIN_USERNAME) {
-      response.cookies.set(ADMIN_HINT_COOKIE, '1', {
+    /* Only the nav links depend on this; see `ADMIN_HINT_COOKIE`. */
+    if (user.role === 'admin' || user.role === 'owner') {
+      response.cookies.set(ADMIN_HINT_COOKIE, user.role, {
         httpOnly: false,
         sameSite: 'lax',
         path: '/',

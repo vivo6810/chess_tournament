@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { cookies } from 'next/headers';
 
-import { ADMIN_USERNAME } from './admin';
+import { type Role } from './admin';
 import { db, now, type UserRow } from './db';
 import { hashPassword, verifyPassword } from './password';
 
@@ -15,23 +15,39 @@ export { hashPassword, verifyPassword };
 
 export const normalizeUsername = (username: string) => username.trim().toLowerCase();
 
-export type PublicUser = { id: number; username: string; rating: number };
+export type PublicUser = { id: number; username: string; rating: number; role: Role };
 
 export const toPublicUser = (row: UserRow): PublicUser => ({
   id: row.id,
   username: row.username,
   rating: row.rating,
+  role: row.role,
 });
 
 /**
- * Whether this session belongs to the built-in admin.
+ * Staff: the admin and the owner run every event, not just the ones they made.
  *
- * The username is the identity: `username_key` is unique and "admin" is taken
- * by the seed before anyone can register, so no ordinary account can collide
- * with it.
+ * This is deliberately not a username check any more — the owner can promote
+ * ordinary accounts to admin, and a promotion that did not change behaviour
+ * would be a lie.
  */
 export function isAdmin(user: PublicUser | null): boolean {
-  return user != null && normalizeUsername(user.username) === ADMIN_USERNAME;
+  return user != null && (user.role === 'admin' || user.role === 'owner');
+}
+
+export function isOwner(user: PublicUser | null): boolean {
+  return user != null && user.role === 'owner';
+}
+
+/**
+ * Who may decide a game they are not seated in.
+ *
+ * The owner runs the people, not the boards: suspending an event is how the
+ * owner stops something, and it must never be possible to resign someone's game
+ * from above. So this is the admin role only, plus the tournament's own host.
+ */
+export function canSettleGames(user: PublicUser | null): boolean {
+  return user != null && user.role === 'admin';
 }
 
 const lastSeen = new Map<number, number>();
@@ -78,7 +94,8 @@ export async function getCurrentUser(): Promise<PublicUser | null> {
     )
     .get(token, now()) as UserRow | undefined;
 
-  if (!row) return null;
+  /* A blacklisted account is not signed in, whatever cookie it still holds. */
+  if (!row || row.blacklisted === 1) return null;
 
   // Opportunistic cleanup of expired rows, at most once an hour.
   const seen = lastSeen.get(row.id) ?? 0;

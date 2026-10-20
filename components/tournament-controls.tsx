@@ -11,6 +11,7 @@ type Props = {
   currentRound: number;
   totalRounds: number;
   pendingGames: number;
+  suspended?: boolean;
 };
 
 export default function TournamentControls({
@@ -19,6 +20,7 @@ export default function TournamentControls({
   currentRound,
   totalRounds,
   pendingGames,
+  suspended = false,
 }: Props) {
   const router = useRouter();
   const [names, setNames] = useState<string[]>([]);
@@ -52,6 +54,12 @@ export default function TournamentControls({
       </header>
 
       <div className="space-y-5 px-5 py-5">
+        {suspended ? (
+          <p className="border-2 border-loss-fg bg-loss-bg px-3 py-2 text-[12px] font-medium text-loss-fg">
+            The owner has suspended this event. Controls are locked until it is restored.
+          </p>
+        ) : null}
+
         {status === 'draft' ? (
           <>
             <PlayerEntry
@@ -62,7 +70,7 @@ export default function TournamentControls({
             />
             <button
               type="button"
-              disabled={busy || names.length === 0}
+              disabled={busy || suspended || names.length === 0}
               onClick={() => run('players', { names })}
               className="press w-full border-2 border-ink bg-surface px-3.5 py-2 text-[12px] font-bold text-ink shadow-brut-sm"
             >
@@ -71,7 +79,7 @@ export default function TournamentControls({
 
             <button
               type="button"
-              disabled={busy}
+              disabled={busy || suspended}
               onClick={() => run('start')}
               className="press w-full border-2 border-ink bg-accent px-3.5 py-2.5 text-[13px] font-bold text-on-accent shadow-brut"
             >
@@ -89,7 +97,7 @@ export default function TournamentControls({
             </p>
             <button
               type="button"
-              disabled={busy || pendingGames > 0 || lastRound}
+              disabled={busy || suspended || pendingGames > 0 || lastRound}
               onClick={() => run('advance')}
               className="press w-full border-2 border-ink bg-accent px-3.5 py-2.5 text-[13px] font-bold text-on-accent shadow-brut"
             >

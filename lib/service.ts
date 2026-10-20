@@ -186,6 +186,8 @@ export function createTournament(input: {
   timeControlId: string;
   playerNames: string[];
   totalRounds?: number;
+  /** Created from /lab: an admin may play both seats at these boards. */
+  sandbox?: boolean;
 }): TournamentRow {
   const name = input.name.trim();
   if (!name) throw new ServiceError('Give the tournament a name.');
@@ -201,8 +203,8 @@ export function createTournament(input: {
     const info = db
       .prepare(
         `INSERT INTO tournaments
-           (slug, name, host_id, format, time_control, total_rounds, status, current_round, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'draft', 0, ?)`,
+           (slug, name, host_id, format, time_control, total_rounds, status, current_round, sandbox, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'draft', 0, ?, ?)`,
       )
       .run(
         slug,
@@ -211,6 +213,7 @@ export function createTournament(input: {
         input.format,
         input.timeControlId,
         input.totalRounds ?? 0,
+        input.sandbox ? 1 : 0,
         timestamp,
       );
 
@@ -259,9 +262,16 @@ function insertPlayers(tournamentId: number, names: string[], timestamp: number)
   }
 }
 
+export function assertPlayable(tournament: TournamentRow | null): void {
+  if (tournament?.suspended === 1) {
+    throw new ServiceError('This tournament is suspended by the owner.');
+  }
+}
+
 export function addPlayers(tournamentId: number, names: string[]): number {
   const tournament = getTournamentById(tournamentId);
   if (!tournament) throw new ServiceError('Tournament not found.');
+  assertPlayable(tournament);
   if (tournament.status !== 'draft') {
     throw new ServiceError('Players can only be added before the tournament starts.');
   }
@@ -281,6 +291,7 @@ export function addPlayers(tournamentId: number, names: string[]): number {
 export function removePlayer(tournamentId: number, playerId: number): void {
   const tournament = getTournamentById(tournamentId);
   if (!tournament) throw new ServiceError('Tournament not found.');
+  assertPlayable(tournament);
 
   if (tournament.status === 'draft') {
     db.prepare('DELETE FROM tournament_players WHERE id = ? AND tournament_id = ?').run(
@@ -359,6 +370,7 @@ function materialiseRound(tournament: TournamentRow, round: number, pairings: Ge
 export function startTournament(tournamentId: number): TournamentRow {
   const tournament = getTournamentById(tournamentId);
   if (!tournament) throw new ServiceError('Tournament not found.');
+  assertPlayable(tournament);
   if (tournament.status !== 'draft') throw new ServiceError('This tournament has already started.');
 
   const players = listPlayers(tournamentId).filter((p) => p.withdrawn === 0);
@@ -394,6 +406,7 @@ export function startTournament(tournamentId: number): TournamentRow {
 export function advanceRound(tournamentId: number): TournamentRow {
   const tournament = getTournamentById(tournamentId);
   if (!tournament) throw new ServiceError('Tournament not found.');
+  assertPlayable(tournament);
   if (tournament.status !== 'running') throw new ServiceError('This tournament is not running.');
 
   const pending = unfinishedGames(tournamentId);

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { handleError, jsonError, parseId, readJson, requireUser } from '@/lib/api';
-import { isAdmin } from '@/lib/auth';
+import { canSettleGames } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { finishGame, getGame, getTournamentById } from '@/lib/service';
 
@@ -45,9 +45,16 @@ export async function POST(request: Request, { params }: Params) {
       whiteUserId === viewerId ? 'white' : blackUserId === viewerId ? 'black' : null;
 
     const tournament = game.tournament_id ? getTournamentById(game.tournament_id) : null;
+    /* A suspended event is frozen: resigning someone's board would be exactly
+       the interference suspension is meant to stop. */
+    if (tournament?.suspended === 1) {
+      return jsonError('This tournament is suspended by the owner.', 403);
+    }
+
     /* The admin settles any board: the account exists so a stuck game can be
-       finished from anywhere, including one nobody at the board can reach. */
-    const isHost = isAdmin(auth.user) || tournament?.host_id === viewerId;
+       finished from anywhere, including one nobody at the board can reach. The
+       owner is deliberately excluded — see `canSettleGames`. */
+    const isHost = canSettleGames(auth.user) || tournament?.host_id === viewerId;
 
     const body = await readJson<{ action: string; side: 'white' | 'black' }>(request);
     const action = typeof body.action === 'string' ? body.action : '';
