@@ -4,7 +4,15 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
+export default function AuthForm({
+  mode,
+  next = null,
+}: {
+  mode: 'login' | 'register';
+  /* Where to go after signing in. Set by a restricted page that sent the
+     visitor here; signing up has no such page, so it keeps the default. */
+  next?: string | null;
+}) {
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -31,7 +39,7 @@ export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
       return;
     }
 
-    router.push('/tournaments/new');
+    router.push(next ?? '/tournaments/new');
     router.refresh();
   };
 

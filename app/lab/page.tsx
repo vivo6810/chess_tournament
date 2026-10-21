@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 
+import AccessGate from '@/components/access-gate';
 import HeroArena from '@/components/hero-arena';
 import { ADMIN_HINT_COOKIE } from '@/lib/admin';
 import { SESSION_COOKIE, destroySession, getCurrentUser, isAdmin } from '@/lib/auth';
@@ -49,6 +50,9 @@ function counts(): Record<string, number> {
 
 export default async function LabPage() {
   const user = await getCurrentUser();
+  /* Signed out gets the way in; a signed-in player still gets the 404, because
+     the lab is not a place to advertise to people who cannot use it. */
+  if (!user) return <AccessGate role="admin" next="/lab" />;
   /* Not "sign in to see this": a page that explains itself to strangers is a
      page that tells them what to try. To anyone else this route does not exist. */
   if (!isAdmin(user)) notFound();

@@ -1,0 +1,15 @@
+# Dependencies and build output
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# Local run artifacts
+*.log
+.logs/
+artifacts/
+
+# Local environment
+.env
+.env.*
+!.env.example

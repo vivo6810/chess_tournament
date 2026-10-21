@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 
+import AccessGate from '@/components/access-gate';
 import { ADMIN_HINT_COOKIE, type Role } from '@/lib/admin';
 import { SESSION_COOKIE, destroySession, getCurrentUser, isOwner } from '@/lib/auth';
 import {
@@ -36,6 +37,10 @@ const ROLE_LABEL: Record<Role, string> = {
 
 export default async function OwnerPage() {
   const user = await getCurrentUser();
+  /* Signed out is not the same as signed in with the wrong role. A stranger who
+     followed the nav link gets a way in; anyone with an account that is not the
+     owner gets the 404 that keeps the page out of sight. */
+  if (!user) return <AccessGate role="owner" next="/owner" />;
   if (!isOwner(user)) notFound();
 
   const users = listUsers();
